@@ -2,6 +2,7 @@ import gleam/dynamic/decode
 import gleam/json
 import gleam/result
 import open_payments/request
+import open_payments/types.{type Key, Key}
 
 pub type WalletInfo {
   WalletInfo(
@@ -37,11 +38,6 @@ pub fn get(address: String) -> Result(WalletInfo, String) {
 
   json.parse(wallet_info, decoder)
   |> result.map_error(fn(_) { "Failed to parse wallet info" })
-}
-
-// This might not be covering enough key types for all possible JWKS keys
-pub type Key {
-  Key(kid: String, x: String, alg: String, kty: String, crv: String)
 }
 
 pub fn get_keys(address: String) -> Result(List(Key), String) {

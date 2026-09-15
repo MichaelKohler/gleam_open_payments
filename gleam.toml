@@ -17,6 +17,10 @@ gleam_stdlib = ">= 1.0.0 and < 2.0.0"
 gleam_httpc = ">= 5.0.0 and < 6.0.0"
 gleam_http = ">= 4.4.0 and < 5.0.0"
 gleam_json = ">= 3.1.0 and < 4.0.0"
+http_digest_fields = ">= 1.0.0 and < 2.0.0"
+generic_http_message_signatures = ">= 1.0.0 and < 2.0.0"
+gleam_time = ">= 1.10.0 and < 2.0.0"
+simplifile = ">= 2.7.0 and < 3.0.0"
 
 [dev_dependencies]
 gleeunit = ">= 1.0.0 and < 2.0.0"

@@ -7,17 +7,30 @@
 # You should check this file into your source control repository.
 
 packages = [
+  { name = "bigi", version = "4.1.1", build_tools = ["gleam"], requirements = ["gleam_stdlib"], otp_app = "bigi", source = "hex", outer_checksum = "44FEDF1DF5C1F426A80B67C32B976D0828D66524E11BDC2DD22B78D37C883BA7" },
+  { name = "filepath", version = "1.1.2", build_tools = ["gleam"], requirements = ["gleam_stdlib"], otp_app = "filepath", source = "hex", outer_checksum = "B06A9AF0BF10E51401D64B98E4B627F1D2E48C154967DA7AF4D0914780A6D40A" },
+  { name = "generic_http_message_signatures", version = "1.0.0", build_tools = ["gleam"], requirements = ["gleam_stdlib", "kryptos", "structured_fields"], otp_app = "generic_http_message_signatures", source = "hex", outer_checksum = "8C2A0C5C6B4883961DB2F6D9D58D8D8C7B94411AF176089E65EB33C07D16159A" },
+  { name = "gleam_crypto", version = "1.6.0", build_tools = ["gleam"], requirements = ["gleam_stdlib"], otp_app = "gleam_crypto", source = "hex", outer_checksum = "2DE9E4EF53CF6FEE049D4F765731F7178F7A11AEFAE00EEE63BF7536B354AD3F" },
   { name = "gleam_erlang", version = "1.3.0", build_tools = ["gleam"], requirements = ["gleam_stdlib"], otp_app = "gleam_erlang", source = "hex", outer_checksum = "1124AD3AA21143E5AF0FC5CF3D9529F6DB8CA03E43A55711B60B6B7B3874375C" },
   { name = "gleam_http", version = "4.4.0", build_tools = ["gleam"], requirements = ["gleam_stdlib"], otp_app = "gleam_http", source = "hex", outer_checksum = "F065CE9941A7756ABBAEAE7F9F32A96CAD29DA3311A381DB2D926EA8E8C156DC" },
   { name = "gleam_httpc", version = "5.0.0", build_tools = ["gleam"], requirements = ["gleam_erlang", "gleam_http", "gleam_stdlib"], otp_app = "gleam_httpc", source = "hex", outer_checksum = "C545172618D07811494E97AAA4A0FB34DA6F6D0061FDC8041C2F8E3BE2B2E48F" },
   { name = "gleam_json", version = "3.1.0", build_tools = ["gleam"], requirements = ["gleam_stdlib"], otp_app = "gleam_json", source = "hex", outer_checksum = "44FDAA8847BE8FC48CA7A1C089706BD54BADCC4C45B237A992EDDF9F2CDB2836" },
   { name = "gleam_stdlib", version = "1.0.5", build_tools = ["gleam"], requirements = [], otp_app = "gleam_stdlib", source = "hex", outer_checksum = "CEE5B6C076A85B45F60C585F4316C63EC8B7127C119D5738C3958A9C4D50404E" },
+  { name = "gleam_time", version = "1.10.0", build_tools = ["gleam"], requirements = ["gleam_stdlib"], otp_app = "gleam_time", source = "hex", outer_checksum = "56539216E4C4B1748714652AB38F0BD16B9101F61DB62769FDC7CD42A8E5E833" },
   { name = "gleeunit", version = "1.11.0", build_tools = ["gleam"], requirements = ["gleam_stdlib"], otp_app = "gleeunit", source = "hex", outer_checksum = "EC31ABA74256AEA531EDF8169931D775BBB384FED0A8A1BDC4DD9354E3E21826" },
+  { name = "http_digest_fields", version = "1.0.0", build_tools = ["gleam"], requirements = ["gleam_crypto", "gleam_stdlib", "structured_fields"], otp_app = "http_digest_fields", source = "hex", outer_checksum = "BF7716D7AEEE0BA09088E35FAD196AE2A8087B3AC3E525ECF8A6D5624105973B" },
+  { name = "kryptos", version = "1.5.0", build_tools = ["gleam"], requirements = ["bigi", "gleam_stdlib", "gleam_time"], otp_app = "kryptos", source = "hex", outer_checksum = "0707A1492E8585CEC8218315C69A182B43CD25E22C216CB530330C94F5D62944" },
+  { name = "simplifile", version = "2.7.0", build_tools = ["gleam"], requirements = ["filepath", "gleam_stdlib"], otp_app = "simplifile", source = "hex", outer_checksum = "A2727627B063E87351934C7F7F008F2D1FDB16F6DE0B8C79F9E46459CFC9C164" },
+  { name = "structured_fields", version = "1.0.0", build_tools = ["gleam"], requirements = ["gleam_stdlib"], otp_app = "structured_fields", source = "hex", outer_checksum = "BAC86C63C17898AC6C8212E0C65BD8D26C4A3EE41100777146330BF71FD3E94B" },
 ]
 
 [requirements]
+generic_http_message_signatures = { version = ">= 1.0.0 and < 2.0.0" }
 gleam_http = { version = ">= 4.4.0 and < 5.0.0" }
 gleam_httpc = { version = ">= 5.0.0 and < 6.0.0" }
 gleam_json = { version = ">= 3.1.0 and < 4.0.0" }
 gleam_stdlib = { version = ">= 1.0.0 and < 2.0.0" }
+gleam_time = { version = ">= 1.10.0 and < 2.0.0" }
 gleeunit = { version = ">= 1.0.0 and < 2.0.0" }
+http_digest_fields = { version = ">= 1.0.0 and < 2.0.0" }
+simplifile = { version = ">= 2.7.0 and < 3.0.0" }

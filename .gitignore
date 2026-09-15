@@ -2,3 +2,4 @@
 *.ez
 /build
 erl_crash.dump
+/fixtures/private_key

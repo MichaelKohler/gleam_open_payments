@@ -1,3 +1,5 @@
+import simplifile
+
 pub type Client {
   AuthenticatedClient(
     wallet_address_url: String,
@@ -17,5 +19,6 @@ pub fn create(
 }
 
 fn read_private_key(path: String) -> String {
-  todo
+  let assert Ok(private_key) = simplifile.read(path)
+  private_key
 }
