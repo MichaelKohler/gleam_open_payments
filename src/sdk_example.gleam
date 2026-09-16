@@ -2,16 +2,19 @@ import gleam/erlang/charlist
 import gleam/int
 import gleam/io
 import gleam/list
-import gleam/option.{type Option, None, Some}
+import gleam/option.{None, Some}
 import gleam/string
 import open_payments/client
 import open_payments/grants.{
-  type GrantOptions, type GrantResponse, AccessIncoming, AccessOutgoing,
-  AccessQuote, Amount, DebitAmount, Finish, Grant, GrantOptions, IncomingRead,
-  IncomingReadAll, Interact, Limits, OutgoingCreate, PendingGrant, QuoteCreate,
-  QuoteRead,
+  type GrantResponse, AccessIncoming, AccessOutgoing, AccessQuote, DebitAmount,
+  Finish, Grant, GrantOptions, IncomingComplete, IncomingCreate, IncomingList,
+  IncomingRead, IncomingReadAll, Interact, Limits, OutgoingCreate, PendingGrant,
+  QuoteCreate, QuoteRead,
 }
-import open_payments/types.{type Key}
+import open_payments/incoming_payment.{
+  type IncomingPayment, type IncomingPaymentList, CreateOptions, ListOptions,
+}
+import open_payments/types.{type Amount, type Key, Amount}
 import open_payments/wallet_address.{type WalletInfo}
 
 pub fn main() -> Nil {
@@ -37,7 +40,14 @@ pub fn main() -> Nil {
 
   section("Incoming payment grant")
 
-  let access = AccessIncoming([IncomingRead, IncomingReadAll], None)
+  let access =
+    AccessIncoming(
+      [
+        IncomingCreate, IncomingRead, IncomingReadAll, IncomingList,
+        IncomingComplete,
+      ],
+      Some(address),
+    )
   let interact =
     Interact(
       ["redirect"],
@@ -46,7 +56,34 @@ pub fn main() -> Nil {
   let grant_options =
     GrantOptions(address_info.auth_server, access, interact, address)
 
-  let incoming_grant_continue = request_incoming_grant(client, grant_options)
+  case grants.request(client, grant_options) {
+    Ok(grant) ->
+      case grants.is_interactive_grant(grant) {
+        True -> panic as "Grant should not require interaction!"
+        False -> {
+          print_grant(grant)
+          case grant {
+            Grant(access_token: token, continue: continue) -> {
+              run_incoming_payment_flow(
+                client,
+                address_info,
+                address,
+                token.value,
+              )
+
+              section("Cancel incoming payment grant")
+
+              case grants.cancel(client, continue) {
+                Ok(_) -> io.println("  Grant canceled.")
+                Error(err) -> print_error("Failed to cancel grant", err)
+              }
+            }
+            PendingGrant(..) -> Nil
+          }
+        }
+      }
+    Error(err) -> print_error("Failed to request grant", err)
+  }
 
   section("Quote grant")
 
@@ -70,7 +107,7 @@ pub fn main() -> Nil {
 
   section("Outgoing payment grant")
 
-  let amount = Amount(20, "USD", 2)
+  let amount = Amount("20", "USD", 2)
   let debit_amount = DebitAmount(amount)
   let incoming_payment_url =
     "https://ilp.interledger-test.dev/incoming-payments/placeholder"
@@ -102,39 +139,64 @@ pub fn main() -> Nil {
       }
     Error(err) -> print_error("Failed to request grant", err)
   }
-
-  section("Cancel incoming payment grant")
-
-  case incoming_grant_continue {
-    Some(continue) ->
-      case grants.cancel(client, continue) {
-        Ok(_) -> io.println("  Grant canceled.")
-        Error(err) -> print_error("Failed to cancel grant", err)
-      }
-    None -> io.println("  Skipped: no grant to cancel.")
-  }
 }
 
-fn request_incoming_grant(
+fn run_incoming_payment_flow(
   client: client.Client,
-  grant_options: GrantOptions,
-) -> Option(grants.ContinueResponse) {
-  case grants.request(client, grant_options) {
-    Ok(grant) ->
-      case grants.is_interactive_grant(grant) {
-        True -> panic as "Grant should not require interaction!"
-        False -> {
-          print_grant(grant)
-          case grant {
-            Grant(continue: continue, ..) -> Some(continue)
-            PendingGrant(..) -> None
-          }
-        }
+  address_info: WalletInfo,
+  address: String,
+  access_token: String,
+) -> Nil {
+  section("Create incoming payment")
+
+  let create_options =
+    CreateOptions(
+      resource_server: address_info.resource_server,
+      wallet_address: address,
+      incoming_amount: Some(Amount(
+        "100",
+        address_info.asset_code,
+        address_info.asset_scale,
+      )),
+      expires_at: None,
+      metadata: None,
+    )
+
+  case incoming_payment.create(client, access_token, create_options) {
+    Ok(payment) -> {
+      print_incoming_payment(payment)
+
+      section("List incoming payments")
+
+      let list_options =
+        ListOptions(
+          resource_server: address_info.resource_server,
+          wallet_address: address,
+          cursor: None,
+          first: None,
+          last: None,
+        )
+
+      case incoming_payment.list(client, access_token, list_options) {
+        Ok(payment_list) -> print_incoming_payment_list(payment_list)
+        Error(err) -> print_error("Failed to list incoming payments", err)
       }
-    Error(err) -> {
-      print_error("Failed to request grant", err)
-      None
+
+      section("Get incoming payment")
+
+      case incoming_payment.get(client, access_token, payment.id) {
+        Ok(fetched) -> print_incoming_payment(fetched)
+        Error(err) -> print_error("Failed to get incoming payment", err)
+      }
+
+      section("Complete incoming payment")
+
+      case incoming_payment.complete(client, access_token, payment.id) {
+        Ok(completed) -> print_incoming_payment(completed)
+        Error(err) -> print_error("Failed to complete incoming payment", err)
+      }
     }
+    Error(err) -> print_error("Failed to create incoming payment", err)
   }
 }
 
@@ -225,6 +287,57 @@ fn print_continuation(continuation: grants.ContinuationResponse) -> Nil {
       field("Manage URL", token.manage)
     }
     None -> field("Status", "continuation succeeded, no access token issued")
+  }
+}
+
+fn print_amount(amount: Amount) -> String {
+  amount.value
+  <> " "
+  <> amount.asset_code
+  <> " (scale "
+  <> int.to_string(amount.asset_scale)
+  <> ")"
+}
+
+fn print_incoming_payment(payment: IncomingPayment) -> Nil {
+  field("ID", payment.id)
+  field("Wallet address", payment.wallet_address)
+  field("Completed", case payment.completed {
+    True -> "yes"
+    False -> "no"
+  })
+  case payment.incoming_amount {
+    Some(amount) -> field("Incoming amount", print_amount(amount))
+    None -> Nil
+  }
+  field("Received amount", print_amount(payment.received_amount))
+  field("Created at", payment.created_at)
+  case payment.methods {
+    [] -> Nil
+    methods ->
+      list.each(methods, fn(method) {
+        io.println("    - ILP address: " <> method.ilp_address)
+      })
+  }
+}
+
+fn print_incoming_payment_list(payment_list: IncomingPaymentList) -> Nil {
+  field("Has next page", case payment_list.pagination.has_next_page {
+    True -> "yes"
+    False -> "no"
+  })
+  case payment_list.result {
+    [] -> io.println("  (no incoming payments found)")
+    payments ->
+      list.each(payments, fn(payment) {
+        io.println(
+          "  - "
+          <> payment.id
+          <> " (received "
+          <> print_amount(payment.received_amount)
+          <> ")",
+        )
+      })
   }
 }
 

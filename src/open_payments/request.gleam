@@ -115,7 +115,8 @@ fn handle_response(
   resp: Result(Response(String), httpc.HttpError),
 ) -> Result(String, String) {
   case resp {
-    Ok(resp) if resp.status == 200 || resp.status == 204 -> Ok(resp.body)
+    Ok(resp) if resp.status == 200 || resp.status == 201 || resp.status == 204 ->
+      Ok(resp.body)
     Ok(resp) ->
       Error(
         "Request failed with status "

@@ -5,7 +5,9 @@ import gleam/option.{type Option, None, Some}
 import gleam/result
 import open_payments/client.{type Client}
 import open_payments/request
-import open_payments/types.{type Key}
+import open_payments/types.{
+  type Amount, type Key, decode_amount, encode_amount, optional_field,
+}
 
 pub type IncomingAction {
   IncomingCreate
@@ -28,10 +30,6 @@ pub type QuoteAction {
   QuoteCreate
   QuoteRead
   QuoteReadAll
-}
-
-pub type Amount {
-  Amount(value: Int, asset_code: String, asset_scale: Int)
 }
 
 pub type LimitAmount {
@@ -123,26 +121,6 @@ pub type AccessTokenResponse {
 pub type GrantResponse {
   PendingGrant(interact: InteractResponse, continue: ContinueResponse)
   Grant(access_token: AccessTokenResponse, continue: ContinueResponse)
-}
-
-fn optional_field(
-  fields: List(#(String, Json)),
-  name: String,
-  value: Option(a),
-  encode: fn(a) -> Json,
-) -> List(#(String, Json)) {
-  case value {
-    Some(v) -> [#(name, encode(v)), ..fields]
-    None -> fields
-  }
-}
-
-fn encode_amount(amount: Amount) -> Json {
-  json.object([
-    #("value", json.int(amount.value)),
-    #("assetCode", json.string(amount.asset_code)),
-    #("assetScale", json.int(amount.asset_scale)),
-  ])
 }
 
 fn encode_limits(limits: Limits) -> Json {
@@ -292,17 +270,6 @@ fn decode_quote_action() -> decode.Decoder(QuoteAction) {
     "read-all" -> decode.success(QuoteReadAll)
     _ -> decode.failure(QuoteCreate, "QuoteAction")
   }
-}
-
-fn decode_amount() -> decode.Decoder(Amount) {
-  use value <- decode.field("value", decode.int)
-  use asset_code <- decode.field("assetCode", decode.string)
-  use asset_scale <- decode.field("assetScale", decode.int)
-  decode.success(Amount(
-    value: value,
-    asset_code: asset_code,
-    asset_scale: asset_scale,
-  ))
 }
 
 fn decode_limits() -> decode.Decoder(Limits) {
