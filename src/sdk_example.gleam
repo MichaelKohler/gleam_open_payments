@@ -90,7 +90,7 @@ fn request_incoming_payment_grant_section(
   let grant_options =
     GrantOptions(
       auth_server_url: receiver_address_info.auth_server,
-      access: access,
+      access: [access],
       interact: None,
       address: receiver_address,
     )
@@ -265,7 +265,7 @@ fn request_quote_grant_section(
   let grant_options =
     GrantOptions(
       auth_server_url: sender_address_info.auth_server,
-      access: access,
+      access: [access],
       interact: None,
       address: sender_address,
     )
@@ -411,7 +411,7 @@ fn request_outgoing_payment_grant_section(
   let grant_options =
     GrantOptions(
       auth_server_url: sender_address_info.auth_server,
-      access: access,
+      access: [access],
       interact: Some(interact),
       address: sender_address,
     )

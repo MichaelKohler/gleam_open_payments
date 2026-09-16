@@ -5,7 +5,10 @@ import open_payments/grants.{
   ClientWalletAddressObject, ContinueAccessToken, ContinueResponse, Finish,
   Grant, Interact, InteractResponse, PendingGrant,
 }
-import open_payments/types.{AccessQuote, AccessTokenResponse, Key, QuoteCreate}
+import open_payments/types.{
+  AccessIncoming, AccessQuote, AccessTokenResponse, IncomingCreate, Key,
+  QuoteCreate,
+}
 
 pub fn encode_finish_test() {
   let finish = Finish("redirect", "https://example.com/finish", "nonce")
@@ -33,10 +36,21 @@ pub fn encode_interact_without_finish_test() {
 }
 
 pub fn encode_access_token_test() {
-  let access_token = AccessTokenBodyProperty(AccessQuote([QuoteCreate]))
+  let access_token = AccessTokenBodyProperty([AccessQuote([QuoteCreate])])
 
   assert json.to_string(grants.encode_access_token(access_token))
     == "{\"access\":[{\"type\":\"quote\",\"actions\":[\"create\"]}]}"
+}
+
+pub fn encode_access_token_multiple_access_test() {
+  let access_token =
+    AccessTokenBodyProperty([
+      AccessQuote([QuoteCreate]),
+      AccessIncoming(actions: [IncomingCreate], identifier: None),
+    ])
+
+  assert json.to_string(grants.encode_access_token(access_token))
+    == "{\"access\":[{\"type\":\"quote\",\"actions\":[\"create\"]},{\"type\":\"incoming-payment\",\"actions\":[\"create\"]}]}"
 }
 
 pub fn encode_key_test() {
@@ -66,7 +80,7 @@ pub fn encode_client_directed_identity_test() {
 pub fn encode_body_test() {
   let body =
     Body(
-      access_token: AccessTokenBodyProperty(AccessQuote([QuoteCreate])),
+      access_token: AccessTokenBodyProperty([AccessQuote([QuoteCreate])]),
       client: ClientWalletAddressObject("https://wallet.example/sender"),
       interact: None,
     )

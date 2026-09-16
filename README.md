@@ -37,7 +37,7 @@ pub fn main() -> Nil {
   let incoming_grant_options =
     GrantOptions(
       receiver_info.auth_server,
-      AccessIncoming([IncomingCreate], Some(receiver_address)),
+      [AccessIncoming([IncomingCreate], Some(receiver_address))],
       None,
       receiver_address,
     )

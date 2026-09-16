@@ -23,12 +23,14 @@ pub type Interact {
   Interact(start: List(String), finish: Option(Finish))
 }
 
-/// The options for a grant request.
+/// The options for a grant request. `access` may list more than one access
+/// kind (e.g. incoming-payment and quote) to request them all in a single
+/// grant.
 /// See https://openpayments.dev/apis/auth-server/operations/post-request/
 pub type GrantOptions {
   GrantOptions(
     auth_server_url: String,
-    access: Access,
+    access: List(Access),
     interact: Option(Interact),
     address: String,
   )
@@ -36,7 +38,7 @@ pub type GrantOptions {
 
 /// Wraps the `access` requested for the token issued by a grant.
 pub type AccessTokenBodyProperty {
-  AccessTokenBodyProperty(access: Access)
+  AccessTokenBodyProperty(access: List(Access))
 }
 
 /// How the client making the grant request identifies itself: either
@@ -103,7 +105,7 @@ pub fn encode_interact(interact: Interact) -> Json {
 
 @internal
 pub fn encode_access_token(access_token: AccessTokenBodyProperty) -> Json {
-  json.object([#("access", json.array([access_token.access], encode_access))])
+  json.object([#("access", json.array(access_token.access, encode_access))])
 }
 
 @internal
@@ -193,7 +195,9 @@ pub fn decode_grant_response() -> decode.Decoder(GrantResponse) {
   decode.one_of(decode_pending_grant(), or: [decode_grant()])
 }
 
-/// Requests a grant from the auth server for the given access.
+/// Requests a grant from the auth server for the given access. Pass more
+/// than one `Access` in `options.access` to request them all under a single
+/// grant, rather than requesting each with its own grant.
 /// See https://openpayments.dev/apis/auth-server/operations/post-request/
 pub fn request(
   client: Client,
