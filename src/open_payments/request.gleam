@@ -111,7 +111,8 @@ pub fn send_request(
   handle_response(resp)
 }
 
-fn handle_response(
+@internal
+pub fn handle_response(
   resp: Result(Response(String), httpc.HttpError),
 ) -> Result(String, String) {
   case resp {

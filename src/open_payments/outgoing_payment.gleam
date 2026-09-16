@@ -71,7 +71,8 @@ pub type GrantSpentAmounts {
   )
 }
 
-fn encode_create_body(options: CreateOptions) -> Json {
+@internal
+pub fn encode_create_body(options: CreateOptions) -> Json {
   let fields = [#("walletAddress", json.string(options.wallet_address))]
 
   let fields = case options.source {
@@ -88,7 +89,8 @@ fn encode_create_body(options: CreateOptions) -> Json {
   |> json.object
 }
 
-fn decode_outgoing_payment() -> decode.Decoder(OutgoingPayment) {
+@internal
+pub fn decode_outgoing_payment() -> decode.Decoder(OutgoingPayment) {
   use id <- decode.field("id", decode.string)
   use wallet_address <- decode.field("walletAddress", decode.string)
   use quote_id <- decode.optional_field(
@@ -133,13 +135,15 @@ fn decode_outgoing_payment() -> decode.Decoder(OutgoingPayment) {
   ))
 }
 
-fn decode_outgoing_payment_list() -> decode.Decoder(OutgoingPaymentList) {
+@internal
+pub fn decode_outgoing_payment_list() -> decode.Decoder(OutgoingPaymentList) {
   use pagination <- decode.field("pagination", decode_page_info())
   use result <- decode.field("result", decode.list(decode_outgoing_payment()))
   decode.success(OutgoingPaymentList(pagination: pagination, result: result))
 }
 
-fn decode_grant_spent_amounts() -> decode.Decoder(GrantSpentAmounts) {
+@internal
+pub fn decode_grant_spent_amounts() -> decode.Decoder(GrantSpentAmounts) {
   use spent_receive_amount <- decode.field(
     "spentReceiveAmount",
     decode.optional(decode_amount()),

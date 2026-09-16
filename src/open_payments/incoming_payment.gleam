@@ -56,7 +56,8 @@ pub type ListOptions {
   )
 }
 
-fn encode_create_body(options: CreateOptions) -> Json {
+@internal
+pub fn encode_create_body(options: CreateOptions) -> Json {
   [#("walletAddress", json.string(options.wallet_address))]
   |> optional_field("incomingAmount", options.incoming_amount, encode_amount)
   |> optional_field("expiresAt", options.expires_at, json.string)
@@ -64,7 +65,8 @@ fn encode_create_body(options: CreateOptions) -> Json {
   |> json.object
 }
 
-fn decode_ilp_payment_method() -> decode.Decoder(IlpPaymentMethod) {
+@internal
+pub fn decode_ilp_payment_method() -> decode.Decoder(IlpPaymentMethod) {
   use ilp_address <- decode.field("ilpAddress", decode.string)
   use shared_secret <- decode.field("sharedSecret", decode.string)
   decode.success(IlpPaymentMethod(
@@ -73,7 +75,8 @@ fn decode_ilp_payment_method() -> decode.Decoder(IlpPaymentMethod) {
   ))
 }
 
-fn decode_incoming_payment() -> decode.Decoder(IncomingPayment) {
+@internal
+pub fn decode_incoming_payment() -> decode.Decoder(IncomingPayment) {
   use id <- decode.field("id", decode.string)
   use wallet_address <- decode.field("walletAddress", decode.string)
   use completed <- decode.field("completed", decode.bool)
@@ -112,7 +115,8 @@ fn decode_incoming_payment() -> decode.Decoder(IncomingPayment) {
   ))
 }
 
-fn decode_incoming_payment_list() -> decode.Decoder(IncomingPaymentList) {
+@internal
+pub fn decode_incoming_payment_list() -> decode.Decoder(IncomingPaymentList) {
   use pagination <- decode.field("pagination", decode_page_info())
   use result <- decode.field("result", decode.list(decode_incoming_payment()))
   decode.success(IncomingPaymentList(pagination: pagination, result: result))

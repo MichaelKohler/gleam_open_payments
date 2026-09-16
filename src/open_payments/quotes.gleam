@@ -32,7 +32,8 @@ pub type CreateOptions {
   )
 }
 
-fn encode_create_body(options: CreateOptions) -> Json {
+@internal
+pub fn encode_create_body(options: CreateOptions) -> Json {
   [
     #("walletAddress", json.string(options.wallet_address)),
     #("receiver", json.string(options.receiver)),
@@ -42,7 +43,8 @@ fn encode_create_body(options: CreateOptions) -> Json {
   |> json.object
 }
 
-fn decode_quote() -> decode.Decoder(Quote) {
+@internal
+pub fn decode_quote() -> decode.Decoder(Quote) {
   use id <- decode.field("id", decode.string)
   use wallet_address <- decode.field("walletAddress", decode.string)
   use receiver <- decode.field("receiver", decode.string)

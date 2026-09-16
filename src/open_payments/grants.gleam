@@ -68,7 +68,8 @@ pub type GrantResponse {
   Grant(access_token: AccessTokenResponse, continue: ContinueResponse)
 }
 
-fn encode_finish(finish: Finish) -> Json {
+@internal
+pub fn encode_finish(finish: Finish) -> Json {
   json.object([
     #("method", json.string(finish.method)),
     #("uri", json.string(finish.uri)),
@@ -76,17 +77,20 @@ fn encode_finish(finish: Finish) -> Json {
   ])
 }
 
-fn encode_interact(interact: Interact) -> Json {
+@internal
+pub fn encode_interact(interact: Interact) -> Json {
   [#("start", json.array(interact.start, json.string))]
   |> optional_field("finish", interact.finish, encode_finish)
   |> json.object
 }
 
-fn encode_access_token(access_token: AccessTokenBodyProperty) -> Json {
+@internal
+pub fn encode_access_token(access_token: AccessTokenBodyProperty) -> Json {
   json.object([#("access", json.array([access_token.access], encode_access))])
 }
 
-fn encode_key(key: Key) -> Json {
+@internal
+pub fn encode_key(key: Key) -> Json {
   json.object([
     #("kid", json.string(key.kid)),
     #("x", json.string(key.x)),
@@ -96,14 +100,16 @@ fn encode_key(key: Key) -> Json {
   ])
 }
 
-fn encode_client(client: ClientType) -> Json {
+@internal
+pub fn encode_client(client: ClientType) -> Json {
   case client {
     ClientDirectedIdentity(jwk) -> encode_key(jwk)
     ClientWalletAddressObject(wallet_address) -> json.string(wallet_address)
   }
 }
 
-fn encode_body(body: Body) -> Json {
+@internal
+pub fn encode_body(body: Body) -> Json {
   [
     #("access_token", encode_access_token(body.access_token)),
     #("client", encode_client(body.client)),
@@ -112,7 +118,8 @@ fn encode_body(body: Body) -> Json {
   |> json.object
 }
 
-fn decode_interact_response() -> decode.Decoder(InteractResponse) {
+@internal
+pub fn decode_interact_response() -> decode.Decoder(InteractResponse) {
   use redirect <- decode.field("redirect", decode.string)
   use finish <- decode.optional_field(
     "finish",
@@ -122,12 +129,14 @@ fn decode_interact_response() -> decode.Decoder(InteractResponse) {
   decode.success(InteractResponse(redirect: redirect, finish: finish))
 }
 
-fn decode_continue_access_token() -> decode.Decoder(ContinueAccessToken) {
+@internal
+pub fn decode_continue_access_token() -> decode.Decoder(ContinueAccessToken) {
   use value <- decode.field("value", decode.string)
   decode.success(ContinueAccessToken(value: value))
 }
 
-fn decode_continue_response() -> decode.Decoder(ContinueResponse) {
+@internal
+pub fn decode_continue_response() -> decode.Decoder(ContinueResponse) {
   use access_token <- decode.field(
     "access_token",
     decode_continue_access_token(),
@@ -145,13 +154,15 @@ fn decode_continue_response() -> decode.Decoder(ContinueResponse) {
   ))
 }
 
-fn decode_pending_grant() -> decode.Decoder(GrantResponse) {
+@internal
+pub fn decode_pending_grant() -> decode.Decoder(GrantResponse) {
   use interact <- decode.field("interact", decode_interact_response())
   use continue <- decode.field("continue", decode_continue_response())
   decode.success(PendingGrant(interact: interact, continue: continue))
 }
 
-fn decode_grant() -> decode.Decoder(GrantResponse) {
+@internal
+pub fn decode_grant() -> decode.Decoder(GrantResponse) {
   use access_token <- decode.field(
     "access_token",
     decode_access_token_response(),
@@ -160,7 +171,8 @@ fn decode_grant() -> decode.Decoder(GrantResponse) {
   decode.success(Grant(access_token: access_token, continue: continue))
 }
 
-fn decode_grant_response() -> decode.Decoder(GrantResponse) {
+@internal
+pub fn decode_grant_response() -> decode.Decoder(GrantResponse) {
   decode.one_of(decode_pending_grant(), or: [decode_grant()])
 }
 
@@ -205,11 +217,13 @@ pub type ContinuationResponse {
   )
 }
 
-fn encode_continue_body(interact_ref: String) -> Json {
+@internal
+pub fn encode_continue_body(interact_ref: String) -> Json {
   json.object([#("interact_ref", json.string(interact_ref))])
 }
 
-fn decode_continuation_response() -> decode.Decoder(ContinuationResponse) {
+@internal
+pub fn decode_continuation_response() -> decode.Decoder(ContinuationResponse) {
   use access_token <- decode.optional_field(
     "access_token",
     None,
