@@ -6,6 +6,7 @@ import gleam/json.{type Json}
 import gleam/option.{type Option, None, Some}
 import gleam/uri
 import open_payments/client.{type Client}
+import open_payments/error.{type OpenPaymentsError}
 import open_payments/request
 import open_payments/types.{
   type Amount, type PageInfo, add_query, decode_amount, decode_page_info,
@@ -131,7 +132,7 @@ pub fn create(
   client: Client,
   access_token: String,
   options: CreateOptions,
-) -> Result(IncomingPayment, String) {
+) -> Result(IncomingPayment, OpenPaymentsError) {
   let url = options.resource_server <> "/incoming-payments"
   let body = encode_create_body(options)
 
@@ -152,7 +153,7 @@ pub fn list(
   client: Client,
   access_token: String,
   options: ListOptions,
-) -> Result(IncomingPaymentList, String) {
+) -> Result(IncomingPaymentList, OpenPaymentsError) {
   let query =
     [#("wallet-address", options.wallet_address)]
     |> add_query("cursor", options.cursor, fn(v) { v })
@@ -182,7 +183,7 @@ pub fn get(
   client: Client,
   access_token: String,
   id: String,
-) -> Result(IncomingPayment, String) {
+) -> Result(IncomingPayment, OpenPaymentsError) {
   request.send_and_decode(
     client,
     id,
@@ -202,7 +203,7 @@ pub fn complete(
   client: Client,
   access_token: String,
   id: String,
-) -> Result(IncomingPayment, String) {
+) -> Result(IncomingPayment, OpenPaymentsError) {
   let url = id <> "/complete"
 
   request.send_and_decode(

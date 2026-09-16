@@ -3,6 +3,7 @@ import gleam/http
 import gleam/json.{type Json}
 import gleam/option.{type Option, None, Some}
 import open_payments/client.{type Client}
+import open_payments/error.{type OpenPaymentsError}
 import open_payments/request
 import open_payments/types.{
   type Amount, type AmountOption, add_amount_option, decode_amount,
@@ -75,7 +76,7 @@ pub fn create(
   client: Client,
   access_token: String,
   options: CreateOptions,
-) -> Result(Quote, String) {
+) -> Result(Quote, OpenPaymentsError) {
   let url = options.resource_server <> "/quotes"
   let body = encode_create_body(options)
 
@@ -97,7 +98,7 @@ pub fn get(
   client: Client,
   access_token: String,
   id: String,
-) -> Result(Quote, String) {
+) -> Result(Quote, OpenPaymentsError) {
   request.send_and_decode(
     client,
     id,

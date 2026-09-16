@@ -3,6 +3,7 @@ import gleam/http
 import gleam/option.{None, Some}
 import gleam/result
 import open_payments/client.{type Client}
+import open_payments/error.{type OpenPaymentsError}
 import open_payments/request
 import open_payments/types.{
   type AccessTokenResponse, decode_access_token_response,
@@ -25,7 +26,7 @@ pub fn decode_rotate_response() -> decode.Decoder(AccessTokenResponse) {
 pub fn rotate(
   client: Client,
   access_token: AccessTokenResponse,
-) -> Result(AccessTokenResponse, String) {
+) -> Result(AccessTokenResponse, OpenPaymentsError) {
   request.send_and_decode(
     client,
     access_token.manage,
@@ -43,7 +44,7 @@ pub fn rotate(
 pub fn revoke(
   client: Client,
   access_token: AccessTokenResponse,
-) -> Result(Nil, String) {
+) -> Result(Nil, OpenPaymentsError) {
   request.send_request(
     client,
     access_token.manage,

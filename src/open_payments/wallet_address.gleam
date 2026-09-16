@@ -1,6 +1,5 @@
 import gleam/dynamic/decode
-import gleam/json
-import gleam/result
+import open_payments/error.{type OpenPaymentsError}
 import open_payments/request
 import open_payments/types.{type Key, Key}
 
@@ -57,20 +56,23 @@ pub fn decode_keys() -> decode.Decoder(List(Key)) {
 /// Fetches the public details of the wallet address, including the auth
 /// and resource server URLs needed for further requests.
 /// See https://openpayments.dev/apis/wallet-address-server/operations/get-wallet-address/
-pub fn get(address: String) -> Result(WalletInfo, String) {
-  use wallet_info <- result.try(request.send_unauthenticated_request(address))
-
-  json.parse(wallet_info, decode_wallet_info())
-  |> result.map_error(fn(_) { "Failed to parse wallet info" })
+pub fn get(address: String) -> Result(WalletInfo, OpenPaymentsError) {
+  request.send_unauthenticated_and_decode(
+    address,
+    decoder: decode_wallet_info(),
+    error_context: "Failed to parse wallet info",
+  )
 }
 
 /// Fetches the public keys (JWKS) registered on the wallet address, used to
 /// verify signatures made by its owner.
 /// See https://openpayments.dev/apis/wallet-address-server/operations/get-wallet-address-keys/
-pub fn get_keys(address: String) -> Result(List(Key), String) {
+pub fn get_keys(address: String) -> Result(List(Key), OpenPaymentsError) {
   let url = address <> "/jwks.json"
-  use wallet_info <- result.try(request.send_unauthenticated_request(url))
 
-  json.parse(wallet_info, decode_keys())
-  |> result.map_error(fn(_) { "Failed to parse wallet keys" })
+  request.send_unauthenticated_and_decode(
+    url,
+    decoder: decode_keys(),
+    error_context: "Failed to parse wallet keys",
+  )
 }

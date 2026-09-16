@@ -4,6 +4,7 @@ import gleam/json.{type Json}
 import gleam/option.{type Option, None, Some}
 import gleam/result
 import open_payments/client.{type Client}
+import open_payments/error.{type OpenPaymentsError}
 import open_payments/request
 import open_payments/types.{
   type Access, type AccessTokenResponse, type Key, decode_access_token_response,
@@ -197,7 +198,7 @@ pub fn decode_grant_response() -> decode.Decoder(GrantResponse) {
 pub fn request(
   client: Client,
   options: GrantOptions,
-) -> Result(GrantResponse, String) {
+) -> Result(GrantResponse, OpenPaymentsError) {
   let url = options.auth_server_url
   let body =
     Body(
@@ -261,7 +262,7 @@ pub fn continue(
   client: Client,
   response: ContinueResponse,
   interact_ref: String,
-) -> Result(ContinuationResponse, String) {
+) -> Result(ContinuationResponse, OpenPaymentsError) {
   let body = encode_continue_body(interact_ref)
 
   request.send_and_decode(
@@ -281,7 +282,7 @@ pub fn continue(
 pub fn cancel(
   client: Client,
   response: ContinueResponse,
-) -> Result(Nil, String) {
+) -> Result(Nil, OpenPaymentsError) {
   request.send_request(
     client,
     response.uri,

@@ -3,7 +3,6 @@ import gleam/http
 import gleam/http/request
 import gleam/http/response.{type Response}
 import gleam/httpc
-import gleam/int
 import gleam/json.{type Json}
 import gleam/list
 import gleam/option.{type Option, None, Some}
@@ -16,20 +15,42 @@ import http_message_signatures/message
 import http_message_signatures/params.{SignatureParams}
 import http_message_signatures/signer
 import open_payments/client.{type Client}
+import open_payments/error.{
+  type OpenPaymentsError, ApiError, DecodeError, TransportError,
+}
 
 const signature_max_age_seconds = 300
 
 /// Sends an unsigned GET request to `url` and returns the response body.
 /// Used for endpoints that don't require an access token or request
 /// signature, such as fetching wallet address details.
-pub fn send_unauthenticated_request(url: String) -> Result(String, String) {
+pub fn send_unauthenticated_request(
+  url: String,
+) -> Result(String, OpenPaymentsError) {
   use base_req <- result.try(
-    request.to(url) |> result.replace_error("Invalid URL: " <> url),
+    request.to(url)
+    |> result.replace_error(TransportError("Invalid URL: " <> url)),
   )
   let req = request.prepend_header(base_req, "accept", "application/json")
   let resp = httpc.send(req)
 
   handle_response(resp)
+}
+
+/// Sends `send_unauthenticated_request` and decodes the JSON response body
+/// with `decoder`. A decode failure is wrapped as `DecodeError` with
+/// `error_context <> ": " <> <the underlying decode error>`.
+pub fn send_unauthenticated_and_decode(
+  url: String,
+  decoder decoder: decode.Decoder(a),
+  error_context error_context: String,
+) -> Result(a, OpenPaymentsError) {
+  use response_body <- result.try(send_unauthenticated_request(url))
+
+  json.parse(response_body, decoder)
+  |> result.map_error(fn(err) {
+    DecodeError(error_context <> ": " <> string.inspect(err))
+  })
 }
 
 /// Sends an HTTP message signed with `client`'s private key to `url`, and
@@ -42,19 +63,22 @@ pub fn send_request(
   method: http.Method,
   body: Option(Json),
   token token: Option(String),
-) -> Result(String, String) {
+) -> Result(String, OpenPaymentsError) {
   use digest_header <- result.try(case body {
     Some(b) ->
       content_digest.create_digest_header_value(json.to_string(b), "sha-512")
       |> result.map(Some)
       |> result.map_error(fn(err) {
-        "Failed to create content digest: " <> string.inspect(err)
+        TransportError(
+          "Failed to create content digest: " <> string.inspect(err),
+        )
       })
     None -> Ok(None)
   })
 
   use base_req <- result.try(
-    request.to(url) |> result.replace_error("Invalid URL: " <> url),
+    request.to(url)
+    |> result.replace_error(TransportError("Invalid URL: " <> url)),
   )
 
   let unsigned_req =
@@ -108,7 +132,7 @@ pub fn send_request(
   use signed <- result.try(
     signer.sign(message_to_sign, client.private_key, "sig1", signature_params)
     |> result.map_error(fn(err) {
-      "Failed to sign request: " <> string.inspect(err)
+      TransportError("Failed to sign request: " <> string.inspect(err))
     }),
   )
 
@@ -128,7 +152,7 @@ pub fn send_request(
 }
 
 /// Sends a signed request via `send_request` and decodes the JSON response
-/// body with `decoder`. A decode failure is wrapped as
+/// body with `decoder`. A decode failure is wrapped as `DecodeError` with
 /// `error_context <> ": " <> <the underlying decode error>`, so callers get
 /// a message that both names the response and shows what went wrong parsing
 /// it.
@@ -140,7 +164,7 @@ pub fn send_and_decode(
   token token: Option(String),
   decoder decoder: decode.Decoder(a),
   error_context error_context: String,
-) -> Result(a, String) {
+) -> Result(a, OpenPaymentsError) {
   use response_body <- result.try(send_request(
     client,
     url,
@@ -150,23 +174,20 @@ pub fn send_and_decode(
   ))
 
   json.parse(response_body, decoder)
-  |> result.map_error(fn(err) { error_context <> ": " <> string.inspect(err) })
+  |> result.map_error(fn(err) {
+    DecodeError(error_context <> ": " <> string.inspect(err))
+  })
 }
 
 @internal
 pub fn handle_response(
   resp: Result(Response(String), httpc.HttpError),
-) -> Result(String, String) {
+) -> Result(String, OpenPaymentsError) {
   case resp {
     Ok(resp) if resp.status == 200 || resp.status == 201 || resp.status == 204 ->
       Ok(resp.body)
-    Ok(resp) ->
-      Error(
-        "Request failed with status "
-        <> int.to_string(resp.status)
-        <> ": "
-        <> resp.body,
-      )
-    Error(err) -> Error("Request failed: " <> string.inspect(err))
+    Ok(resp) -> Error(ApiError(status: resp.status, body: resp.body))
+    Error(err) ->
+      Error(TransportError("Request failed: " <> string.inspect(err)))
   }
 }

@@ -7,6 +7,9 @@ import gleam/option.{None, Some}
 import gleam/string
 import open_payments/access_token
 import open_payments/client
+import open_payments/error.{
+  type OpenPaymentsError, ApiError, DecodeError, KeyError, TransportError,
+}
 import open_payments/grants.{
   type GrantResponse, Finish, Grant, GrantOptions, Interact, PendingGrant,
 }
@@ -161,7 +164,7 @@ fn create_incoming_payment_section(
   access_token: String,
   address_info: WalletInfo,
   address: String,
-) -> Result(IncomingPayment, String) {
+) -> Result(IncomingPayment, OpenPaymentsError) {
   section("Create incoming payment")
 
   let create_options =
@@ -326,7 +329,7 @@ fn create_quote_section(
   sender_address_info: WalletInfo,
   sender_address: String,
   incoming_payment_id: String,
-) -> Result(Quote, String) {
+) -> Result(Quote, OpenPaymentsError) {
   section("Create quote")
 
   let create_options =
@@ -539,7 +542,7 @@ fn create_second_outgoing_payment_section(
   address: String,
   incoming_payment_id: String,
   debit_amount: Amount,
-) -> Result(OutgoingPayment, String) {
+) -> Result(OutgoingPayment, OpenPaymentsError) {
   section("Create outgoing payment from incoming payment")
 
   let create_options =
@@ -571,7 +574,7 @@ fn create_outgoing_payment_section(
   address_info: WalletInfo,
   address: String,
   quote_id: String,
-) -> Result(OutgoingPayment, String) {
+) -> Result(OutgoingPayment, OpenPaymentsError) {
   section("Create outgoing payment")
 
   let create_options =
@@ -663,7 +666,7 @@ fn rotate_and_revoke_access_token_section(
 fn rotate_access_token_section(
   client: client.Client,
   token: AccessTokenResponse,
-) -> Result(AccessTokenResponse, String) {
+) -> Result(AccessTokenResponse, OpenPaymentsError) {
   section("Rotate access token")
 
   case access_token.rotate(client, token) {
@@ -701,8 +704,18 @@ fn field(label: String, value: String) -> Nil {
   io.println("  " <> string.pad_end(label <> ":", 16, " ") <> value)
 }
 
-fn print_error(context: String, reason: String) -> Nil {
-  io.println("  Error: " <> context <> " - " <> reason)
+fn print_error(context: String, reason: OpenPaymentsError) -> Nil {
+  io.println("  Error: " <> context <> " - " <> format_error(reason))
+}
+
+fn format_error(error: OpenPaymentsError) -> String {
+  case error {
+    TransportError(message) -> message
+    ApiError(status: status, body: body) ->
+      "server responded with " <> int.to_string(status) <> ": " <> body
+    DecodeError(message) -> message
+    KeyError(message) -> message
+  }
 }
 
 fn print_wallet_info(info: WalletInfo) -> Nil {

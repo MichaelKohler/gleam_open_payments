@@ -1,6 +1,7 @@
 import gleam/string
 import http_message_signatures/keys
 import open_payments/client.{AuthenticatedClient}
+import open_payments/error.{KeyError}
 import simplifile
 
 pub fn create_test() {
@@ -23,7 +24,7 @@ pub fn create_test() {
 }
 
 pub fn create_missing_file_test() {
-  let assert Error(message) =
+  let assert Error(KeyError(message)) =
     client.create(
       wallet_address_url: "https://ilp.interledger-test.dev/michaelusd",
       key_id: "be52ffa9-b61b-4a8c-8dbe-43b75cda31c9",
@@ -34,7 +35,7 @@ pub fn create_missing_file_test() {
 }
 
 pub fn create_invalid_key_test() {
-  let assert Error(message) =
+  let assert Error(KeyError(message)) =
     client.create(
       wallet_address_url: "https://ilp.interledger-test.dev/michaelusd",
       key_id: "be52ffa9-b61b-4a8c-8dbe-43b75cda31c9",
