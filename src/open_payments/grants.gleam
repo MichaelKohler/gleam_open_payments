@@ -6,49 +6,8 @@ import gleam/result
 import open_payments/client.{type Client}
 import open_payments/request
 import open_payments/types.{
-  type AmountOption, type Key, add_amount_option, decode_amount_option,
-  optional_field,
-}
-
-pub type IncomingAction {
-  IncomingCreate
-  IncomingComplete
-  IncomingRead
-  IncomingReadAll
-  IncomingList
-  IncomingListAll
-}
-
-pub type OutgoingAction {
-  OutgoingCreate
-  OutgoingRead
-  OutgoingReadAll
-  OutgoingList
-  OutgoingListAll
-}
-
-pub type QuoteAction {
-  QuoteCreate
-  QuoteRead
-  QuoteReadAll
-}
-
-pub type Limits {
-  Limits(
-    receiver: Option(String),
-    interval: Option(String),
-    amount: AmountOption,
-  )
-}
-
-pub type Access {
-  AccessIncoming(actions: List(IncomingAction), identifier: Option(String))
-  AccessOutgoing(
-    actions: List(OutgoingAction),
-    identifier: String,
-    limits: Option(Limits),
-  )
-  AccessQuote(actions: List(QuoteAction))
+  type Access, type AccessTokenResponse, type Key, decode_access_token_response,
+  encode_access, optional_field,
 }
 
 pub type Finish {
@@ -101,83 +60,12 @@ pub type ContinueResponse {
   )
 }
 
-pub type AccessTokenResponse {
-  AccessTokenResponse(
-    value: String,
-    manage: String,
-    expires_in: Option(Int),
-    access: List(Access),
-  )
-}
-
 /// The result of a grant request. A grant is either pending client
 /// interaction (`PendingGrant`) or has already been approved (`Grant`).
 /// See https://openpayments.dev/apis/auth-server/operations/post-request/
 pub type GrantResponse {
   PendingGrant(interact: InteractResponse, continue: ContinueResponse)
   Grant(access_token: AccessTokenResponse, continue: ContinueResponse)
-}
-
-fn encode_limits(limits: Limits) -> Json {
-  []
-  |> optional_field("receiver", limits.receiver, json.string)
-  |> optional_field("interval", limits.interval, json.string)
-  |> add_amount_option(limits.amount)
-  |> json.object
-}
-
-fn encode_incoming_action(action: IncomingAction) -> Json {
-  json.string(case action {
-    IncomingCreate -> "create"
-    IncomingComplete -> "complete"
-    IncomingRead -> "read"
-    IncomingReadAll -> "read-all"
-    IncomingList -> "list"
-    IncomingListAll -> "list-all"
-  })
-}
-
-fn encode_outgoing_action(action: OutgoingAction) -> Json {
-  json.string(case action {
-    OutgoingCreate -> "create"
-    OutgoingRead -> "read"
-    OutgoingReadAll -> "read-all"
-    OutgoingList -> "list"
-    OutgoingListAll -> "list-all"
-  })
-}
-
-fn encode_quote_action(action: QuoteAction) -> Json {
-  json.string(case action {
-    QuoteCreate -> "create"
-    QuoteRead -> "read"
-    QuoteReadAll -> "read-all"
-  })
-}
-
-fn encode_access(access: Access) -> Json {
-  case access {
-    AccessIncoming(actions, identifier) ->
-      [
-        #("type", json.string("incoming-payment")),
-        #("actions", json.array(actions, encode_incoming_action)),
-      ]
-      |> optional_field("identifier", identifier, json.string)
-      |> json.object
-    AccessOutgoing(actions, identifier, limits) ->
-      [
-        #("type", json.string("outgoing-payment")),
-        #("actions", json.array(actions, encode_outgoing_action)),
-        #("identifier", json.string(identifier)),
-      ]
-      |> optional_field("limits", limits, encode_limits)
-      |> json.object
-    AccessQuote(actions) ->
-      json.object([
-        #("type", json.string("quote")),
-        #("actions", json.array(actions, encode_quote_action)),
-      ])
-  }
 }
 
 fn encode_finish(finish: Finish) -> Json {
@@ -224,92 +112,6 @@ fn encode_body(body: Body) -> Json {
   |> json.object
 }
 
-fn decode_incoming_action() -> decode.Decoder(IncomingAction) {
-  use action <- decode.then(decode.string)
-  case action {
-    "create" -> decode.success(IncomingCreate)
-    "complete" -> decode.success(IncomingComplete)
-    "read" -> decode.success(IncomingRead)
-    "read-all" -> decode.success(IncomingReadAll)
-    "list" -> decode.success(IncomingList)
-    "list-all" -> decode.success(IncomingListAll)
-    _ -> decode.failure(IncomingCreate, "IncomingAction")
-  }
-}
-
-fn decode_outgoing_action() -> decode.Decoder(OutgoingAction) {
-  use action <- decode.then(decode.string)
-  case action {
-    "create" -> decode.success(OutgoingCreate)
-    "read" -> decode.success(OutgoingRead)
-    "read-all" -> decode.success(OutgoingReadAll)
-    "list" -> decode.success(OutgoingList)
-    "list-all" -> decode.success(OutgoingListAll)
-    _ -> decode.failure(OutgoingCreate, "OutgoingAction")
-  }
-}
-
-fn decode_quote_action() -> decode.Decoder(QuoteAction) {
-  use action <- decode.then(decode.string)
-  case action {
-    "create" -> decode.success(QuoteCreate)
-    "read" -> decode.success(QuoteRead)
-    "read-all" -> decode.success(QuoteReadAll)
-    _ -> decode.failure(QuoteCreate, "QuoteAction")
-  }
-}
-
-fn decode_limits() -> decode.Decoder(Limits) {
-  use receiver <- decode.optional_field(
-    "receiver",
-    None,
-    decode.string |> decode.map(Some),
-  )
-  use interval <- decode.optional_field(
-    "interval",
-    None,
-    decode.string |> decode.map(Some),
-  )
-  use amount <- decode.then(decode_amount_option())
-  decode.success(Limits(receiver: receiver, interval: interval, amount: amount))
-}
-
-fn decode_access() -> decode.Decoder(Access) {
-  use kind <- decode.field("type", decode.string)
-  case kind {
-    "incoming-payment" -> {
-      use actions <- decode.field(
-        "actions",
-        decode.list(decode_incoming_action()),
-      )
-      use identifier <- decode.optional_field(
-        "identifier",
-        None,
-        decode.string |> decode.map(Some),
-      )
-      decode.success(AccessIncoming(actions, identifier))
-    }
-    "outgoing-payment" -> {
-      use actions <- decode.field(
-        "actions",
-        decode.list(decode_outgoing_action()),
-      )
-      use identifier <- decode.field("identifier", decode.string)
-      use limits <- decode.optional_field(
-        "limits",
-        None,
-        decode_limits() |> decode.map(Some),
-      )
-      decode.success(AccessOutgoing(actions, identifier, limits))
-    }
-    "quote" -> {
-      use actions <- decode.field("actions", decode.list(decode_quote_action()))
-      decode.success(AccessQuote(actions))
-    }
-    _ -> decode.failure(AccessQuote([]), "Access")
-  }
-}
-
 fn decode_interact_response() -> decode.Decoder(InteractResponse) {
   use redirect <- decode.field("redirect", decode.string)
   use finish <- decode.optional_field(
@@ -340,23 +142,6 @@ fn decode_continue_response() -> decode.Decoder(ContinueResponse) {
     access_token: access_token,
     uri: uri,
     wait: wait,
-  ))
-}
-
-fn decode_access_token_response() -> decode.Decoder(AccessTokenResponse) {
-  use value <- decode.field("value", decode.string)
-  use manage <- decode.field("manage", decode.string)
-  use expires_in <- decode.optional_field(
-    "expires_in",
-    None,
-    decode.int |> decode.map(Some),
-  )
-  use access <- decode.field("access", decode.list(decode_access()))
-  decode.success(AccessTokenResponse(
-    value: value,
-    manage: manage,
-    expires_in: expires_in,
-    access: access,
   ))
 }
 

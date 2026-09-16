@@ -5,12 +5,10 @@ import gleam/io
 import gleam/list
 import gleam/option.{None, Some}
 import gleam/string
+import open_payments/access_token
 import open_payments/client
 import open_payments/grants.{
-  type GrantResponse, AccessIncoming, AccessOutgoing, AccessQuote, Finish, Grant,
-  GrantOptions, IncomingComplete, IncomingCreate, IncomingList, IncomingRead,
-  IncomingReadAll, Interact, Limits, OutgoingCreate, OutgoingList, OutgoingRead,
-  OutgoingReadAll, PendingGrant, QuoteCreate, QuoteRead,
+  type GrantResponse, Finish, Grant, GrantOptions, Interact, PendingGrant,
 }
 import open_payments/incoming_payment.{
   type IncomingPayment, type IncomingPaymentList, CreateOptions, ListOptions,
@@ -20,7 +18,13 @@ import open_payments/outgoing_payment.{
   FromIncomingPayment, FromQuote,
 }
 import open_payments/quotes.{type Quote}
-import open_payments/types.{type Amount, type Key, Amount, DebitAmount}
+import open_payments/types.{
+  type AccessTokenResponse, type Amount, type Key, AccessIncoming,
+  AccessOutgoing, AccessQuote, Amount, DebitAmount, IncomingComplete,
+  IncomingCreate, IncomingList, IncomingRead, IncomingReadAll, Limits,
+  OutgoingCreate, OutgoingList, OutgoingRead, OutgoingReadAll, QuoteCreate,
+  QuoteRead,
+}
 import open_payments/wallet_address.{type WalletInfo}
 
 pub fn main() -> Nil {
@@ -404,12 +408,12 @@ fn request_outgoing_payment_grant_section(
     Ok(grant) ->
       case grants.is_interactive_grant(grant) {
         True ->
-          handle_pending_grant(client, grant, fn(access_token) {
+          handle_pending_grant(client, grant, fn(token) {
             run_outgoing_payment_flow(
               client,
               sender_address_info,
               sender_address,
-              access_token,
+              token,
               quote.id,
               incoming_payment_id,
             )
@@ -423,7 +427,7 @@ fn request_outgoing_payment_grant_section(
 fn handle_pending_grant(
   client: client.Client,
   grant: GrantResponse,
-  on_token: fn(String) -> Nil,
+  on_token: fn(AccessTokenResponse) -> Nil,
 ) -> Nil {
   case grant {
     PendingGrant(interact: interact, continue: continue) -> {
@@ -436,7 +440,7 @@ fn handle_pending_grant(
         Ok(continuation) -> {
           print_continuation(continuation)
           case continuation.access_token {
-            Some(token) -> on_token(token.value)
+            Some(token) -> on_token(token)
             None -> Nil
           }
         }
@@ -451,14 +455,14 @@ fn run_outgoing_payment_flow(
   client: client.Client,
   sender_address_info: WalletInfo,
   sender_address: String,
-  access_token: String,
+  access_token: AccessTokenResponse,
   quote_id: String,
   incoming_payment_id: String,
 ) -> Nil {
   case
     create_outgoing_payment_section(
       client,
-      access_token,
+      access_token.value,
       sender_address_info,
       sender_address,
       quote_id,
@@ -467,11 +471,11 @@ fn run_outgoing_payment_flow(
     Ok(payment) -> {
       list_outgoing_payments_section(
         client,
-        access_token,
+        access_token.value,
         sender_address_info,
         sender_address,
       )
-      get_outgoing_payment_section(client, access_token, payment.id)
+      get_outgoing_payment_section(client, access_token.value, payment.id)
 
       // Fills up the remaining incoming payment amount, leaving 1 cent
       // unpaid, reusing the same access token from the grant above.
@@ -484,7 +488,7 @@ fn run_outgoing_payment_flow(
       case
         create_second_outgoing_payment_section(
           client,
-          access_token,
+          access_token.value,
           sender_address_info,
           sender_address,
           incoming_payment_id,
@@ -492,13 +496,18 @@ fn run_outgoing_payment_flow(
         )
       {
         Ok(second_payment) -> {
-          get_outgoing_payment_section(client, access_token, second_payment.id)
+          get_outgoing_payment_section(
+            client,
+            access_token.value,
+            second_payment.id,
+          )
           wait_for_payments_section()
           get_outgoing_payment_grant_section(
             client,
-            access_token,
+            access_token.value,
             sender_address_info,
           )
+          rotate_and_revoke_access_token_section(client, access_token)
         }
         Error(_) -> Nil
       }
@@ -626,6 +635,47 @@ fn get_outgoing_payment_grant_section(
     Ok(spent) -> print_grant_spent_amounts(spent)
     Error(err) ->
       print_error("Failed to get outgoing payment grant spent amounts", err)
+  }
+}
+
+fn rotate_and_revoke_access_token_section(
+  client: client.Client,
+  token: AccessTokenResponse,
+) -> Nil {
+  case rotate_access_token_section(client, token) {
+    Ok(rotated) -> revoke_access_token_section(client, rotated)
+    Error(_) -> Nil
+  }
+}
+
+fn rotate_access_token_section(
+  client: client.Client,
+  token: AccessTokenResponse,
+) -> Result(AccessTokenResponse, String) {
+  section("Rotate access token")
+
+  case access_token.rotate(client, token) {
+    Ok(rotated) -> {
+      field("Access token", rotated.value)
+      field("Manage URL", rotated.manage)
+      Ok(rotated)
+    }
+    Error(err) -> {
+      print_error("Failed to rotate access token", err)
+      Error(err)
+    }
+  }
+}
+
+fn revoke_access_token_section(
+  client: client.Client,
+  token: AccessTokenResponse,
+) -> Nil {
+  section("Revoke access token")
+
+  case access_token.revoke(client, token) {
+    Ok(_) -> io.println("  Access token revoked.")
+    Error(err) -> print_error("Failed to revoke access token", err)
   }
 }
 
