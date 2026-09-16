@@ -6,15 +6,16 @@ import gleam/option.{None, Some}
 import gleam/string
 import open_payments/client
 import open_payments/grants.{
-  type GrantResponse, AccessIncoming, AccessOutgoing, AccessQuote, DebitAmount,
-  Finish, Grant, GrantOptions, IncomingComplete, IncomingCreate, IncomingList,
-  IncomingRead, IncomingReadAll, Interact, Limits, OutgoingCreate, PendingGrant,
-  QuoteCreate, QuoteRead,
+  type GrantResponse, AccessIncoming, AccessOutgoing, AccessQuote, Finish, Grant,
+  GrantOptions, IncomingComplete, IncomingCreate, IncomingList, IncomingRead,
+  IncomingReadAll, Interact, Limits, OutgoingCreate, PendingGrant, QuoteCreate,
+  QuoteRead,
 }
 import open_payments/incoming_payment.{
   type IncomingPayment, type IncomingPaymentList, CreateOptions, ListOptions,
 }
-import open_payments/types.{type Amount, type Key, Amount}
+import open_payments/quotes.{type Quote}
+import open_payments/types.{type Amount, type Key, Amount, DebitAmount, NoAmount}
 import open_payments/wallet_address.{type WalletInfo}
 
 pub fn main() -> Nil {
@@ -81,26 +82,6 @@ pub fn main() -> Nil {
             PendingGrant(..) -> Nil
           }
         }
-      }
-    Error(err) -> print_error("Failed to request grant", err)
-  }
-
-  section("Quote grant")
-
-  let access = AccessQuote([QuoteRead, QuoteCreate])
-  let interact =
-    Interact(
-      ["redirect"],
-      Some(Finish("redirect", "https://example.com/finish", "nonce")),
-    )
-  let grant_options =
-    GrantOptions(address_info.auth_server, access, interact, address)
-
-  case grants.request(client, grant_options) {
-    Ok(grant) ->
-      case grants.is_interactive_grant(grant) {
-        True -> panic as "Grant should not require interaction!"
-        False -> print_grant(grant)
       }
     Error(err) -> print_error("Failed to request grant", err)
   }
@@ -189,6 +170,8 @@ fn run_incoming_payment_flow(
         Error(err) -> print_error("Failed to get incoming payment", err)
       }
 
+      run_quote_flow(client, address_info, address, payment.id)
+
       section("Complete incoming payment")
 
       case incoming_payment.complete(client, access_token, payment.id) {
@@ -197,6 +180,78 @@ fn run_incoming_payment_flow(
       }
     }
     Error(err) -> print_error("Failed to create incoming payment", err)
+  }
+}
+
+fn run_quote_flow(
+  client: client.Client,
+  address_info: WalletInfo,
+  address: String,
+  incoming_payment_id: String,
+) -> Nil {
+  section("Quote grant")
+
+  let access = AccessQuote([QuoteRead, QuoteCreate])
+  let interact =
+    Interact(
+      ["redirect"],
+      Some(Finish("redirect", "https://example.com/finish", "nonce")),
+    )
+  let grant_options =
+    GrantOptions(address_info.auth_server, access, interact, address)
+
+  case grants.request(client, grant_options) {
+    Ok(grant) ->
+      case grants.is_interactive_grant(grant) {
+        True -> panic as "Grant should not require interaction!"
+        False -> {
+          print_grant(grant)
+          case grant {
+            Grant(access_token: token, ..) ->
+              run_quote_operations(
+                client,
+                address_info,
+                address,
+                token.value,
+                incoming_payment_id,
+              )
+            PendingGrant(..) -> Nil
+          }
+        }
+      }
+    Error(err) -> print_error("Failed to request grant", err)
+  }
+}
+
+fn run_quote_operations(
+  client: client.Client,
+  address_info: WalletInfo,
+  address: String,
+  access_token: String,
+  incoming_payment_id: String,
+) -> Nil {
+  section("Create quote")
+
+  let create_options =
+    quotes.CreateOptions(
+      resource_server: address_info.resource_server,
+      wallet_address: address,
+      receiver: incoming_payment_id,
+      amount: NoAmount,
+    )
+
+  case quotes.create(client, access_token, create_options) {
+    Ok(quote) -> {
+      print_quote(quote)
+
+      section("Get quote")
+
+      case quotes.get(client, access_token, quote.id) {
+        Ok(fetched) -> print_quote(fetched)
+        Error(err) -> print_error("Failed to get quote", err)
+      }
+    }
+    Error(err) -> print_error("Failed to create quote", err)
   }
 }
 
@@ -328,6 +383,16 @@ fn print_incoming_payment(payment: IncomingPayment) -> Nil {
         io.println("    - ILP address: " <> method.ilp_address)
       })
   }
+}
+
+fn print_quote(quote: Quote) -> Nil {
+  field("ID", quote.id)
+  field("Wallet address", quote.wallet_address)
+  field("Receiver", quote.receiver)
+  field("Debit amount", print_amount(quote.debit_amount))
+  field("Receive amount", print_amount(quote.receive_amount))
+  field("Method", quote.method)
+  field("Created at", quote.created_at)
 }
 
 fn print_incoming_payment_list(payment_list: IncomingPaymentList) -> Nil {

@@ -6,7 +6,8 @@ import gleam/result
 import open_payments/client.{type Client}
 import open_payments/request
 import open_payments/types.{
-  type Amount, type Key, decode_amount, encode_amount, optional_field,
+  type AmountOption, type Key, add_amount_option, decode_amount_option,
+  optional_field,
 }
 
 pub type IncomingAction {
@@ -32,17 +33,11 @@ pub type QuoteAction {
   QuoteReadAll
 }
 
-pub type LimitAmount {
-  NoAmount
-  DebitAmount(Amount)
-  ReceiveAmount(Amount)
-}
-
 pub type Limits {
   Limits(
     receiver: Option(String),
     interval: Option(String),
-    amount: LimitAmount,
+    amount: AmountOption,
   )
 }
 
@@ -124,20 +119,11 @@ pub type GrantResponse {
 }
 
 fn encode_limits(limits: Limits) -> Json {
-  let fields =
-    []
-    |> optional_field("receiver", limits.receiver, json.string)
-    |> optional_field("interval", limits.interval, json.string)
-
-  let fields = case limits.amount {
-    NoAmount -> fields
-    DebitAmount(amount) -> [#("debitAmount", encode_amount(amount)), ..fields]
-    ReceiveAmount(amount) -> [
-      #("receiveAmount", encode_amount(amount)),
-      ..fields
-    ]
-  }
-  json.object(fields)
+  []
+  |> optional_field("receiver", limits.receiver, json.string)
+  |> optional_field("interval", limits.interval, json.string)
+  |> add_amount_option(limits.amount)
+  |> json.object
 }
 
 fn encode_incoming_action(action: IncomingAction) -> Json {
@@ -283,21 +269,7 @@ fn decode_limits() -> decode.Decoder(Limits) {
     None,
     decode.string |> decode.map(Some),
   )
-  use debit_amount <- decode.optional_field(
-    "debitAmount",
-    None,
-    decode_amount() |> decode.map(Some),
-  )
-  use receive_amount <- decode.optional_field(
-    "receiveAmount",
-    None,
-    decode_amount() |> decode.map(Some),
-  )
-  let amount = case debit_amount, receive_amount {
-    Some(amount), _ -> DebitAmount(amount)
-    _, Some(amount) -> ReceiveAmount(amount)
-    None, None -> NoAmount
-  }
+  use amount <- decode.then(decode_amount_option())
   decode.success(Limits(receiver: receiver, interval: interval, amount: amount))
 }
 
