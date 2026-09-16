@@ -4,6 +4,8 @@ import gleam/result
 import open_payments/request
 import open_payments/types.{type Key, Key}
 
+/// The public details of a wallet address, as returned by `get`.
+/// See https://openpayments.dev/apis/wallet-address-server/operations/get-wallet-address/
 pub type WalletInfo {
   WalletInfo(
     id: String,
@@ -52,6 +54,9 @@ pub fn decode_keys() -> decode.Decoder(List(Key)) {
   decode.success(keys)
 }
 
+/// Fetches the public details of the wallet address, including the auth
+/// and resource server URLs needed for further requests.
+/// See https://openpayments.dev/apis/wallet-address-server/operations/get-wallet-address/
 pub fn get(address: String) -> Result(WalletInfo, String) {
   use wallet_info <- result.try(request.send_unauthenticated_request(address))
 
@@ -59,6 +64,9 @@ pub fn get(address: String) -> Result(WalletInfo, String) {
   |> result.map_error(fn(_) { "Failed to parse wallet info" })
 }
 
+/// Fetches the public keys (JWKS) registered on the wallet address, used to
+/// verify signatures made by its owner.
+/// See https://openpayments.dev/apis/wallet-address-server/operations/get-wallet-address-keys/
 pub fn get_keys(address: String) -> Result(List(Key), String) {
   let url = address <> "/jwks.json"
   use wallet_info <- result.try(request.send_unauthenticated_request(url))

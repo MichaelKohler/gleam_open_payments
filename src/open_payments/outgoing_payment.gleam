@@ -31,6 +31,7 @@ pub type OutgoingPayment {
   )
 }
 
+/// A page of outgoing payments, as returned by `list`.
 pub type OutgoingPaymentList {
   OutgoingPaymentList(pagination: PageInfo, result: List(OutgoingPayment))
 }
@@ -43,6 +44,7 @@ pub type CreateSource {
   FromIncomingPayment(incoming_payment: String, debit_amount: Amount)
 }
 
+/// The options for creating an outgoing payment.
 pub type CreateOptions {
   CreateOptions(
     resource_server: String,
@@ -52,6 +54,7 @@ pub type CreateOptions {
   )
 }
 
+/// The options for listing outgoing payments.
 pub type ListOptions {
   ListOptions(
     resource_server: String,

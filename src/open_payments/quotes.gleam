@@ -23,6 +23,7 @@ pub type Quote {
   )
 }
 
+/// The options for creating a quote.
 pub type CreateOptions {
   CreateOptions(
     resource_server: String,

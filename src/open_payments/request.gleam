@@ -18,6 +18,9 @@ import open_payments/client.{type Client}
 
 const signature_max_age_seconds = 300
 
+/// Sends an unsigned GET request to `url` and returns the response body.
+/// Used for endpoints that don't require an access token or request
+/// signature, such as fetching wallet address details.
 pub fn send_unauthenticated_request(url: String) {
   let assert Ok(base_req) = request.to(url)
   let req = request.prepend_header(base_req, "accept", "application/json")
@@ -26,6 +29,10 @@ pub fn send_unauthenticated_request(url: String) {
   handle_response(resp)
 }
 
+/// Sends an HTTP message signed with `client`'s private key to `url`, and
+/// returns the response body. When `body` is given, a `content-digest`
+/// header is attached and covered by the signature; when `token` is given,
+/// it is sent as a `GNAP` authorization header and likewise signed.
 pub fn send_request(
   client: Client,
   url: String,

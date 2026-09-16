@@ -1,5 +1,7 @@
 import simplifile
 
+/// Holds the credentials used to sign requests to the Open Payments auth and
+/// resource servers on behalf of a wallet address.
 pub type Client {
   AuthenticatedClient(
     wallet_address_url: String,
@@ -8,6 +10,10 @@ pub type Client {
   )
 }
 
+/// Creates a `Client` for the given wallet address, reading the Ed25519
+/// private key used for HTTP message signatures from `private_key_path`.
+/// `key_id` must match the ID of the corresponding public key registered on
+/// the wallet address.
 pub fn create(
   wallet_address_url wallet_address_url: String,
   key_id key_id: String,

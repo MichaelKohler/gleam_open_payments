@@ -9,6 +9,7 @@ import open_payments/types.{
   type AccessTokenResponse, decode_access_token_response,
 }
 
+/// Decodes the `access_token` field of a token rotation response.
 @internal
 pub fn decode_rotate_response() -> decode.Decoder(AccessTokenResponse) {
   use access_token <- decode.field(

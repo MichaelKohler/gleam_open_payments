@@ -10,14 +10,20 @@ import open_payments/types.{
   encode_access, optional_field,
 }
 
+/// How the client is notified once the user has completed interaction with
+/// the auth server, as requested in a grant's `interact` options.
 pub type Finish {
   Finish(method: String, uri: String, nonce: String)
 }
 
+/// The interaction methods to request for a grant, and optionally how the
+/// client should be notified when interaction finishes.
 pub type Interact {
   Interact(start: List(String), finish: Option(Finish))
 }
 
+/// The options for a grant request.
+/// See https://openpayments.dev/apis/auth-server/operations/post-request/
 pub type GrantOptions {
   GrantOptions(
     auth_server_url: String,
@@ -27,15 +33,20 @@ pub type GrantOptions {
   )
 }
 
+/// Wraps the `access` requested for the token issued by a grant.
 pub type AccessTokenBodyProperty {
   AccessTokenBodyProperty(access: Access)
 }
 
+/// How the client making the grant request identifies itself: either
+/// directly with its public key (`jwk`), or via a wallet address whose keys
+/// the auth server can look up.
 pub type ClientType {
   ClientDirectedIdentity(jwk: Key)
   ClientWalletAddressObject(wallet_address: String)
 }
 
+/// The request body sent to the auth server to request a grant.
 pub type Body {
   Body(
     access_token: AccessTokenBodyProperty,
@@ -44,14 +55,19 @@ pub type Body {
   )
 }
 
+/// Where to redirect the user to interact with the auth server, and how the
+/// client will be notified once interaction finishes.
 pub type InteractResponse {
   InteractResponse(redirect: String, finish: Option(String))
 }
 
+/// The access token used to continue a pending grant.
 pub type ContinueAccessToken {
   ContinueAccessToken(value: String)
 }
 
+/// Where and how to continue a grant, and how long to wait before polling
+/// again.
 pub type ContinueResponse {
   ContinueResponse(
     access_token: ContinueAccessToken,
@@ -176,6 +192,8 @@ pub fn decode_grant_response() -> decode.Decoder(GrantResponse) {
   decode.one_of(decode_pending_grant(), or: [decode_grant()])
 }
 
+/// Requests a grant from the auth server for the given access.
+/// See https://openpayments.dev/apis/auth-server/operations/post-request/
 pub fn request(
   client: Client,
   options: GrantOptions,
@@ -202,7 +220,7 @@ pub fn request(
 }
 
 /// Returns `True` if the grant requires the user to complete an interaction
-/// (e.g. redirecting to the auth server) before it can be used.
+/// before it can be used.
 pub fn is_interactive_grant(grant: GrantResponse) -> Bool {
   case grant {
     PendingGrant(..) -> True
@@ -210,6 +228,8 @@ pub fn is_interactive_grant(grant: GrantResponse) -> Bool {
   }
 }
 
+/// The result of continuing a pending grant. `access_token` is present once
+/// the grant has been approved.
 pub type ContinuationResponse {
   ContinuationResponse(
     access_token: Option(AccessTokenResponse),

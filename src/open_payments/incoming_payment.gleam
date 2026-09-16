@@ -13,6 +13,7 @@ import open_payments/types.{
   encode_amount, optional_field,
 }
 
+/// The ILP details a sender uses to pay into an incoming payment.
 pub type IlpPaymentMethod {
   IlpPaymentMethod(ilp_address: String, shared_secret: String)
 }
@@ -32,10 +33,12 @@ pub type IncomingPayment {
   )
 }
 
+/// A page of incoming payments, as returned by `list`.
 pub type IncomingPaymentList {
   IncomingPaymentList(pagination: PageInfo, result: List(IncomingPayment))
 }
 
+/// The options for creating an incoming payment.
 pub type CreateOptions {
   CreateOptions(
     resource_server: String,
@@ -46,6 +49,7 @@ pub type CreateOptions {
   )
 }
 
+/// The options for listing incoming payments.
 pub type ListOptions {
   ListOptions(
     resource_server: String,
