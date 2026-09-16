@@ -8,14 +8,20 @@ import open_payments/client
 import open_payments/grants.{
   type GrantResponse, AccessIncoming, AccessOutgoing, AccessQuote, Finish, Grant,
   GrantOptions, IncomingComplete, IncomingCreate, IncomingList, IncomingRead,
-  IncomingReadAll, Interact, Limits, OutgoingCreate, PendingGrant, QuoteCreate,
-  QuoteRead,
+  IncomingReadAll, Interact, Limits, OutgoingCreate, OutgoingList, OutgoingRead,
+  OutgoingReadAll, PendingGrant, QuoteCreate, QuoteRead,
 }
 import open_payments/incoming_payment.{
   type IncomingPayment, type IncomingPaymentList, CreateOptions, ListOptions,
 }
+import open_payments/outgoing_payment.{
+  type GrantSpentAmounts, type OutgoingPayment, type OutgoingPaymentList,
+  FromIncomingPayment, FromQuote,
+}
 import open_payments/quotes.{type Quote}
-import open_payments/types.{type Amount, type Key, Amount, DebitAmount, NoAmount}
+import open_payments/types.{
+  type Amount, type Key, Amount, DebitAmount, ReceiveAmount,
+}
 import open_payments/wallet_address.{type WalletInfo}
 
 pub fn main() -> Nil {
@@ -109,7 +115,6 @@ fn run_incoming_payment_flow(
       )
       get_incoming_payment_section(client, access_token, payment.id)
       request_quote_grant_section(client, address_info, address, payment.id)
-      request_outgoing_payment_grant_section(client, address_info, address)
       complete_incoming_payment_section(client, access_token, payment.id)
     }
     Error(_) -> Nil
@@ -131,7 +136,7 @@ fn create_incoming_payment_section(
       resource_server: address_info.resource_server,
       wallet_address: address,
       incoming_amount: Some(Amount(
-        "100",
+        "200",
         address_info.asset_code,
         address_info.asset_scale,
       )),
@@ -263,7 +268,16 @@ fn run_quote_operations(
       incoming_payment_id,
     )
   {
-    Ok(quote) -> get_quote_section(client, access_token, quote.id)
+    Ok(quote) -> {
+      get_quote_section(client, access_token, quote.id)
+      request_outgoing_payment_grant_section(
+        client,
+        address_info,
+        address,
+        quote,
+        incoming_payment_id,
+      )
+    }
     Error(_) -> Nil
   }
 }
@@ -282,7 +296,11 @@ fn create_quote_section(
       resource_server: address_info.resource_server,
       wallet_address: address,
       receiver: incoming_payment_id,
-      amount: NoAmount,
+      amount: ReceiveAmount(Amount(
+        "100",
+        address_info.asset_code,
+        address_info.asset_scale,
+      )),
     )
 
   case quotes.create(client, access_token, create_options) {
@@ -314,22 +332,29 @@ fn request_outgoing_payment_grant_section(
   client: client.Client,
   address_info: WalletInfo,
   address: String,
+  quote: Quote,
+  incoming_payment_id: String,
 ) -> Nil {
   section("Outgoing payment grant")
 
-  let amount = Amount("20", "USD", 2)
-  let debit_amount = DebitAmount(amount)
-  let incoming_payment_url =
-    "https://ilp.interledger-test.dev/incoming-payments/placeholder"
+  // The grant must cover both outgoing payments: the quote's debit amount,
+  // plus the 99 spent directly against the incoming payment afterwards.
+  let assert Ok(quote_debit_value) = int.parse(quote.debit_amount.value)
+  let total_debit_amount =
+    Amount(
+      int.to_string(quote_debit_value + 99),
+      quote.debit_amount.asset_code,
+      quote.debit_amount.asset_scale,
+    )
   let limits =
     Limits(
-      receiver: Some(incoming_payment_url),
-      amount: debit_amount,
+      receiver: Some(quote.receiver),
+      amount: DebitAmount(total_debit_amount),
       interval: None,
     )
   let access =
     AccessOutgoing(
-      actions: [OutgoingCreate],
+      actions: [OutgoingCreate, OutgoingRead, OutgoingReadAll, OutgoingList],
       identifier: address,
       limits: Some(limits),
     )
@@ -344,14 +369,28 @@ fn request_outgoing_payment_grant_section(
   case grants.request(client, grant_options) {
     Ok(grant) ->
       case grants.is_interactive_grant(grant) {
-        True -> handle_pending_grant(client, grant)
+        True ->
+          handle_pending_grant(client, grant, fn(access_token) {
+            run_outgoing_payment_flow(
+              client,
+              address_info,
+              address,
+              access_token,
+              quote.id,
+              incoming_payment_id,
+            )
+          })
         False -> panic as "Grant should require interaction!"
       }
     Error(err) -> print_error("Failed to request grant", err)
   }
 }
 
-fn handle_pending_grant(client: client.Client, grant: GrantResponse) -> Nil {
+fn handle_pending_grant(
+  client: client.Client,
+  grant: GrantResponse,
+  on_token: fn(String) -> Nil,
+) -> Nil {
   case grant {
     PendingGrant(interact: interact, continue: continue) -> {
       io.println("  Status:   pending interaction")
@@ -360,11 +399,184 @@ fn handle_pending_grant(client: client.Client, grant: GrantResponse) -> Nil {
       let interact_ref = prompt("Paste the interact_ref once approved: ")
 
       case grants.continue(client, continue, interact_ref) {
-        Ok(continuation) -> print_continuation(continuation)
+        Ok(continuation) -> {
+          print_continuation(continuation)
+          case continuation.access_token {
+            Some(token) -> on_token(token.value)
+            None -> Nil
+          }
+        }
         Error(err) -> print_error("Failed to continue grant", err)
       }
     }
     Grant(..) -> panic as "Expected a pending grant"
+  }
+}
+
+fn run_outgoing_payment_flow(
+  client: client.Client,
+  address_info: WalletInfo,
+  address: String,
+  access_token: String,
+  quote_id: String,
+  incoming_payment_id: String,
+) -> Nil {
+  case
+    create_outgoing_payment_section(
+      client,
+      access_token,
+      address_info,
+      address,
+      quote_id,
+    )
+  {
+    Ok(payment) -> {
+      list_outgoing_payments_section(
+        client,
+        access_token,
+        address_info,
+        address,
+      )
+      get_outgoing_payment_section(client, access_token, payment.id)
+      get_outgoing_payment_grant_section(client, access_token, address_info)
+
+      // Fills up the remaining incoming payment amount, leaving 1 cent
+      // unpaid, reusing the same access token from the grant above.
+      let debit_amount =
+        Amount("99", address_info.asset_code, address_info.asset_scale)
+      case
+        create_second_outgoing_payment_section(
+          client,
+          access_token,
+          address_info,
+          address,
+          incoming_payment_id,
+          debit_amount,
+        )
+      {
+        Ok(second_payment) -> {
+          get_outgoing_payment_section(client, access_token, second_payment.id)
+          get_outgoing_payment_grant_section(client, access_token, address_info)
+        }
+        Error(_) -> Nil
+      }
+    }
+    Error(_) -> Nil
+  }
+}
+
+fn create_second_outgoing_payment_section(
+  client: client.Client,
+  access_token: String,
+  address_info: WalletInfo,
+  address: String,
+  incoming_payment_id: String,
+  debit_amount: Amount,
+) -> Result(OutgoingPayment, String) {
+  section("Create outgoing payment from incoming payment")
+
+  let create_options =
+    outgoing_payment.CreateOptions(
+      resource_server: address_info.resource_server,
+      wallet_address: address,
+      source: FromIncomingPayment(incoming_payment_id, debit_amount),
+      metadata: None,
+    )
+
+  case outgoing_payment.create(client, access_token, create_options) {
+    Ok(payment) -> {
+      print_outgoing_payment(payment)
+      Ok(payment)
+    }
+    Error(err) -> {
+      print_error("Failed to create outgoing payment", err)
+      Error(err)
+    }
+  }
+}
+
+fn create_outgoing_payment_section(
+  client: client.Client,
+  access_token: String,
+  address_info: WalletInfo,
+  address: String,
+  quote_id: String,
+) -> Result(OutgoingPayment, String) {
+  section("Create outgoing payment")
+
+  let create_options =
+    outgoing_payment.CreateOptions(
+      resource_server: address_info.resource_server,
+      wallet_address: address,
+      source: FromQuote(quote_id),
+      metadata: None,
+    )
+
+  case outgoing_payment.create(client, access_token, create_options) {
+    Ok(payment) -> {
+      print_outgoing_payment(payment)
+      Ok(payment)
+    }
+    Error(err) -> {
+      print_error("Failed to create outgoing payment", err)
+      Error(err)
+    }
+  }
+}
+
+fn list_outgoing_payments_section(
+  client: client.Client,
+  access_token: String,
+  address_info: WalletInfo,
+  address: String,
+) -> Nil {
+  section("List outgoing payments")
+
+  let list_options =
+    outgoing_payment.ListOptions(
+      resource_server: address_info.resource_server,
+      wallet_address: address,
+      cursor: None,
+      first: None,
+      last: None,
+    )
+
+  case outgoing_payment.list(client, access_token, list_options) {
+    Ok(payment_list) -> print_outgoing_payment_list(payment_list)
+    Error(err) -> print_error("Failed to list outgoing payments", err)
+  }
+}
+
+fn get_outgoing_payment_section(
+  client: client.Client,
+  access_token: String,
+  payment_id: String,
+) -> Nil {
+  section("Get outgoing payment")
+
+  case outgoing_payment.get(client, access_token, payment_id) {
+    Ok(fetched) -> print_outgoing_payment(fetched)
+    Error(err) -> print_error("Failed to get outgoing payment", err)
+  }
+}
+
+fn get_outgoing_payment_grant_section(
+  client: client.Client,
+  access_token: String,
+  address_info: WalletInfo,
+) -> Nil {
+  section("Outgoing payment grant spent amounts")
+
+  case
+    outgoing_payment.get_grant_spent_amounts(
+      client,
+      access_token,
+      address_info.resource_server,
+    )
+  {
+    Ok(spent) -> print_grant_spent_amounts(spent)
+    Error(err) ->
+      print_error("Failed to get outgoing payment grant spent amounts", err)
   }
 }
 
@@ -491,6 +703,31 @@ fn print_quote(quote: Quote) -> Nil {
   field("Created at", quote.created_at)
 }
 
+fn print_outgoing_payment(payment: OutgoingPayment) -> Nil {
+  field("ID", payment.id)
+  field("Wallet address", payment.wallet_address)
+  field("Receiver", payment.receiver)
+  field("Debit amount", print_amount(payment.debit_amount))
+  field("Receive amount", print_amount(payment.receive_amount))
+  field("Sent amount", print_amount(payment.sent_amount))
+  field("Failed", case payment.failed {
+    True -> "yes"
+    False -> "no"
+  })
+  field("Created at", payment.created_at)
+}
+
+fn print_grant_spent_amounts(spent: GrantSpentAmounts) -> Nil {
+  case spent.spent_debit_amount {
+    Some(amount) -> field("Spent debit amount", print_amount(amount))
+    None -> field("Spent debit amount", "none")
+  }
+  case spent.spent_receive_amount {
+    Some(amount) -> field("Spent receive amount", print_amount(amount))
+    None -> field("Spent receive amount", "none")
+  }
+}
+
 fn print_incoming_payment_list(payment_list: IncomingPaymentList) -> Nil {
   field("Has next page", case payment_list.pagination.has_next_page {
     True -> "yes"
@@ -505,6 +742,26 @@ fn print_incoming_payment_list(payment_list: IncomingPaymentList) -> Nil {
           <> payment.id
           <> " (received "
           <> print_amount(payment.received_amount)
+          <> ")",
+        )
+      })
+  }
+}
+
+fn print_outgoing_payment_list(payment_list: OutgoingPaymentList) -> Nil {
+  field("Has next page", case payment_list.pagination.has_next_page {
+    True -> "yes"
+    False -> "no"
+  })
+  case payment_list.result {
+    [] -> io.println("  (no outgoing payments found)")
+    payments ->
+      list.each(payments, fn(payment) {
+        io.println(
+          "  - "
+          <> payment.id
+          <> " (sent "
+          <> print_amount(payment.sent_amount)
           <> ")",
         )
       })

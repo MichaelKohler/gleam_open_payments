@@ -85,3 +85,49 @@ pub fn decode_amount_option() -> decode.Decoder(AmountOption) {
     None, None -> decode.success(NoAmount)
   }
 }
+
+/// Cursor pagination info shared by list responses.
+pub type PageInfo {
+  PageInfo(
+    start_cursor: Option(String),
+    end_cursor: Option(String),
+    has_next_page: Bool,
+    has_previous_page: Bool,
+  )
+}
+
+pub fn decode_page_info() -> decode.Decoder(PageInfo) {
+  use start_cursor <- decode.optional_field(
+    "startCursor",
+    None,
+    decode.string |> decode.map(Some),
+  )
+  use end_cursor <- decode.optional_field(
+    "endCursor",
+    None,
+    decode.string |> decode.map(Some),
+  )
+  use has_next_page <- decode.field("hasNextPage", decode.bool)
+  use has_previous_page <- decode.field("hasPreviousPage", decode.bool)
+  decode.success(PageInfo(
+    start_cursor: start_cursor,
+    end_cursor: end_cursor,
+    has_next_page: has_next_page,
+    has_previous_page: has_previous_page,
+  ))
+}
+
+/// Prepends `#(name, value)` to `query` when `value` is `Some(v)`, otherwise
+/// leaves `query` unchanged. Used to build query strings with optional
+/// parameters.
+pub fn add_query(
+  query: List(#(String, String)),
+  name: String,
+  value: Option(a),
+  encode: fn(a) -> String,
+) -> List(#(String, String)) {
+  case value {
+    Some(v) -> [#(name, encode(v)), ..query]
+    None -> query
+  }
+}
