@@ -10,12 +10,65 @@ gleam add open_payments@1
 ```
 
 ```gleam
-import open_payments
+import gleam/io
+import gleam/option.{None, Some}
+import open_payments/client
+import open_payments/grants.{Grant, GrantOptions}
+import open_payments/incoming_payment
+import open_payments/quotes
+import open_payments/types.{
+  AccessIncoming, AccessQuote, Amount, DebitAmount, IncomingCreate, QuoteCreate,
+}
+import open_payments/wallet_address
 
 pub fn main() -> Nil {
-  // TODO: An example of the project in use
+  let client =
+    client.create(
+      "https://ilp.interledger-test.dev/michaelusd",
+      "be52ffa9-b61b-4a8c-8dbe-43b75cda31c9",
+      "fixtures/private_key",
+    )
+  let sender_address = "https://ilp.interledger-test.dev/michaelusd"
+  let receiver_address = "https://ilp.interledger-test.dev/michaeleur"
+
+  let assert Ok(receiver_info) = wallet_address.get(receiver_address)
+  let assert Ok(sender_info) = wallet_address.get(sender_address)
+
+  let incoming_grant_options =
+    GrantOptions(
+      receiver_info.auth_server,
+      AccessIncoming([IncomingCreate], Some(receiver_address)),
+      None,
+      receiver_address,
+    )
+  let assert Ok(Grant(access_token: incoming_token, continue: _)) =
+    grants.request(client, incoming_grant_options)
+
+  let incoming_payment_options =
+    incoming_payment.CreateOptions(
+      resource_server: receiver_info.resource_server,
+      wallet_address: receiver_address,
+      incoming_amount: Some(Amount(
+        "10000",
+        receiver_info.asset_code,
+        receiver_info.asset_scale,
+      )),
+      expires_at: None,
+      metadata: None,
+    )
+  let assert Ok(payment) =
+    incoming_payment.create(
+      client,
+      incoming_token.value,
+      incoming_payment_options,
+    )
+  io.debug(payment)
+
+  Nil
 }
 ```
+
+Note that this example only creates an incoming payment, and no outgoing payment. Check the `sdk_example.gleam` file for a full end-to-end example.
 
 Further documentation can be found at <https://open-payments.hexdocs.pm/>.
 
