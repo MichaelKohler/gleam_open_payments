@@ -25,20 +25,35 @@ pub fn main() -> Nil {
       "be52ffa9-b61b-4a8c-8dbe-43b75cda31c9",
       "fixtures/private_key",
     )
+  let address = "https://ilp.interledger-test.dev/michaeleur"
 
+  let address_info = fetch_wallet_address_section(address)
+  fetch_wallet_keys_section(address)
+  request_incoming_payment_grant_section(client, address_info, address)
+}
+
+fn fetch_wallet_address_section(address: String) -> WalletInfo {
   section("Wallet address")
 
-  let address = "https://ilp.interledger-test.dev/michaeleur"
   let assert Ok(address_info) = wallet_address.get(address)
   print_wallet_info(address_info)
+  address_info
+}
 
+fn fetch_wallet_keys_section(address: String) -> Nil {
   section("Wallet keys")
 
   case wallet_address.get_keys(address) {
     Ok(keys) -> print_keys(keys)
     Error(err) -> print_error("Failed to get keys", err)
   }
+}
 
+fn request_incoming_payment_grant_section(
+  client: client.Client,
+  address_info: WalletInfo,
+  address: String,
+) -> Nil {
   section("Incoming payment grant")
 
   let access =
@@ -49,13 +64,8 @@ pub fn main() -> Nil {
       ],
       Some(address),
     )
-  let interact =
-    Interact(
-      ["redirect"],
-      Some(Finish("redirect", "https://example.com/finish", "nonce")),
-    )
   let grant_options =
-    GrantOptions(address_info.auth_server, access, interact, address)
+    GrantOptions(address_info.auth_server, access, None, address)
 
   case grants.request(client, grant_options) {
     Ok(grant) ->
@@ -64,59 +74,17 @@ pub fn main() -> Nil {
         False -> {
           print_grant(grant)
           case grant {
-            Grant(access_token: token, continue: continue) -> {
+            Grant(access_token: token, continue: continue) ->
               run_incoming_payment_flow(
                 client,
                 address_info,
                 address,
                 token.value,
+                continue,
               )
-
-              section("Cancel incoming payment grant")
-
-              case grants.cancel(client, continue) {
-                Ok(_) -> io.println("  Grant canceled.")
-                Error(err) -> print_error("Failed to cancel grant", err)
-              }
-            }
             PendingGrant(..) -> Nil
           }
         }
-      }
-    Error(err) -> print_error("Failed to request grant", err)
-  }
-
-  section("Outgoing payment grant")
-
-  let amount = Amount("20", "USD", 2)
-  let debit_amount = DebitAmount(amount)
-  let incoming_payment_url =
-    "https://ilp.interledger-test.dev/incoming-payments/placeholder"
-  let limits =
-    Limits(
-      receiver: Some(incoming_payment_url),
-      amount: debit_amount,
-      interval: None,
-    )
-  let access =
-    AccessOutgoing(
-      actions: [OutgoingCreate],
-      identifier: address,
-      limits: Some(limits),
-    )
-  let interact =
-    Interact(
-      ["redirect"],
-      Some(Finish("redirect", "https://example.com/finish", "nonce")),
-    )
-  let grant_options =
-    GrantOptions(address_info.auth_server, access, interact, address)
-
-  case grants.request(client, grant_options) {
-    Ok(grant) ->
-      case grants.is_interactive_grant(grant) {
-        True -> handle_pending_grant(client, grant)
-        False -> panic as "Grant should require interaction!"
       }
     Error(err) -> print_error("Failed to request grant", err)
   }
@@ -127,7 +95,35 @@ fn run_incoming_payment_flow(
   address_info: WalletInfo,
   address: String,
   access_token: String,
+  continue: grants.ContinueResponse,
 ) -> Nil {
+  case
+    create_incoming_payment_section(client, access_token, address_info, address)
+  {
+    Ok(payment) -> {
+      list_incoming_payments_section(
+        client,
+        access_token,
+        address_info,
+        address,
+      )
+      get_incoming_payment_section(client, access_token, payment.id)
+      request_quote_grant_section(client, address_info, address, payment.id)
+      request_outgoing_payment_grant_section(client, address_info, address)
+      complete_incoming_payment_section(client, access_token, payment.id)
+    }
+    Error(_) -> Nil
+  }
+
+  cancel_incoming_payment_grant_section(client, continue)
+}
+
+fn create_incoming_payment_section(
+  client: client.Client,
+  access_token: String,
+  address_info: WalletInfo,
+  address: String,
+) -> Result(IncomingPayment, String) {
   section("Create incoming payment")
 
   let create_options =
@@ -146,44 +142,77 @@ fn run_incoming_payment_flow(
   case incoming_payment.create(client, access_token, create_options) {
     Ok(payment) -> {
       print_incoming_payment(payment)
-
-      section("List incoming payments")
-
-      let list_options =
-        ListOptions(
-          resource_server: address_info.resource_server,
-          wallet_address: address,
-          cursor: None,
-          first: None,
-          last: None,
-        )
-
-      case incoming_payment.list(client, access_token, list_options) {
-        Ok(payment_list) -> print_incoming_payment_list(payment_list)
-        Error(err) -> print_error("Failed to list incoming payments", err)
-      }
-
-      section("Get incoming payment")
-
-      case incoming_payment.get(client, access_token, payment.id) {
-        Ok(fetched) -> print_incoming_payment(fetched)
-        Error(err) -> print_error("Failed to get incoming payment", err)
-      }
-
-      run_quote_flow(client, address_info, address, payment.id)
-
-      section("Complete incoming payment")
-
-      case incoming_payment.complete(client, access_token, payment.id) {
-        Ok(completed) -> print_incoming_payment(completed)
-        Error(err) -> print_error("Failed to complete incoming payment", err)
-      }
+      Ok(payment)
     }
-    Error(err) -> print_error("Failed to create incoming payment", err)
+    Error(err) -> {
+      print_error("Failed to create incoming payment", err)
+      Error(err)
+    }
   }
 }
 
-fn run_quote_flow(
+fn list_incoming_payments_section(
+  client: client.Client,
+  access_token: String,
+  address_info: WalletInfo,
+  address: String,
+) -> Nil {
+  section("List incoming payments")
+
+  let list_options =
+    ListOptions(
+      resource_server: address_info.resource_server,
+      wallet_address: address,
+      cursor: None,
+      first: None,
+      last: None,
+    )
+
+  case incoming_payment.list(client, access_token, list_options) {
+    Ok(payment_list) -> print_incoming_payment_list(payment_list)
+    Error(err) -> print_error("Failed to list incoming payments", err)
+  }
+}
+
+fn get_incoming_payment_section(
+  client: client.Client,
+  access_token: String,
+  payment_id: String,
+) -> Nil {
+  section("Get incoming payment")
+
+  case incoming_payment.get(client, access_token, payment_id) {
+    Ok(fetched) -> print_incoming_payment(fetched)
+    Error(err) -> print_error("Failed to get incoming payment", err)
+  }
+}
+
+fn complete_incoming_payment_section(
+  client: client.Client,
+  access_token: String,
+  payment_id: String,
+) -> Nil {
+  section("Complete incoming payment")
+
+  case incoming_payment.complete(client, access_token, payment_id) {
+    Ok(completed) -> print_incoming_payment(completed)
+    Error(err) -> print_error("Failed to complete incoming payment", err)
+  }
+}
+
+fn cancel_incoming_payment_grant_section(
+  client: client.Client,
+  continue: grants.ContinueResponse,
+) -> Nil {
+  section("Cancel incoming payment grant")
+
+  case grants.cancel(client, continue) {
+    Ok(_) -> io.println("  Grant canceled.")
+    Error(err) -> print_error("Failed to cancel grant", err)
+  }
+}
+
+fn request_quote_grant_section(
   client: client.Client,
   address_info: WalletInfo,
   address: String,
@@ -192,13 +221,8 @@ fn run_quote_flow(
   section("Quote grant")
 
   let access = AccessQuote([QuoteRead, QuoteCreate])
-  let interact =
-    Interact(
-      ["redirect"],
-      Some(Finish("redirect", "https://example.com/finish", "nonce")),
-    )
   let grant_options =
-    GrantOptions(address_info.auth_server, access, interact, address)
+    GrantOptions(address_info.auth_server, access, None, address)
 
   case grants.request(client, grant_options) {
     Ok(grant) ->
@@ -230,6 +254,27 @@ fn run_quote_operations(
   access_token: String,
   incoming_payment_id: String,
 ) -> Nil {
+  case
+    create_quote_section(
+      client,
+      access_token,
+      address_info,
+      address,
+      incoming_payment_id,
+    )
+  {
+    Ok(quote) -> get_quote_section(client, access_token, quote.id)
+    Error(_) -> Nil
+  }
+}
+
+fn create_quote_section(
+  client: client.Client,
+  access_token: String,
+  address_info: WalletInfo,
+  address: String,
+  incoming_payment_id: String,
+) -> Result(Quote, String) {
   section("Create quote")
 
   let create_options =
@@ -243,15 +288,66 @@ fn run_quote_operations(
   case quotes.create(client, access_token, create_options) {
     Ok(quote) -> {
       print_quote(quote)
-
-      section("Get quote")
-
-      case quotes.get(client, access_token, quote.id) {
-        Ok(fetched) -> print_quote(fetched)
-        Error(err) -> print_error("Failed to get quote", err)
-      }
+      Ok(quote)
     }
-    Error(err) -> print_error("Failed to create quote", err)
+    Error(err) -> {
+      print_error("Failed to create quote", err)
+      Error(err)
+    }
+  }
+}
+
+fn get_quote_section(
+  client: client.Client,
+  access_token: String,
+  quote_id: String,
+) -> Nil {
+  section("Get quote")
+
+  case quotes.get(client, access_token, quote_id) {
+    Ok(fetched) -> print_quote(fetched)
+    Error(err) -> print_error("Failed to get quote", err)
+  }
+}
+
+fn request_outgoing_payment_grant_section(
+  client: client.Client,
+  address_info: WalletInfo,
+  address: String,
+) -> Nil {
+  section("Outgoing payment grant")
+
+  let amount = Amount("20", "USD", 2)
+  let debit_amount = DebitAmount(amount)
+  let incoming_payment_url =
+    "https://ilp.interledger-test.dev/incoming-payments/placeholder"
+  let limits =
+    Limits(
+      receiver: Some(incoming_payment_url),
+      amount: debit_amount,
+      interval: None,
+    )
+  let access =
+    AccessOutgoing(
+      actions: [OutgoingCreate],
+      identifier: address,
+      limits: Some(limits),
+    )
+  let interact =
+    Interact(
+      ["redirect"],
+      Some(Finish("redirect", "https://example.com/finish", "nonce")),
+    )
+  let grant_options =
+    GrantOptions(address_info.auth_server, access, Some(interact), address)
+
+  case grants.request(client, grant_options) {
+    Ok(grant) ->
+      case grants.is_interactive_grant(grant) {
+        True -> handle_pending_grant(client, grant)
+        False -> panic as "Grant should require interaction!"
+      }
+    Error(err) -> print_error("Failed to request grant", err)
   }
 }
 

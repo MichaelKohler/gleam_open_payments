@@ -63,7 +63,7 @@ pub type GrantOptions {
   GrantOptions(
     auth_server_url: String,
     access: Access,
-    interact: Interact,
+    interact: Option(Interact),
     address: String,
   )
 }
@@ -81,7 +81,7 @@ pub type Body {
   Body(
     access_token: AccessTokenBodyProperty,
     client: ClientType,
-    interact: Interact,
+    interact: Option(Interact),
   )
 }
 
@@ -216,11 +216,12 @@ fn encode_client(client: ClientType) -> Json {
 }
 
 fn encode_body(body: Body) -> Json {
-  json.object([
+  [
     #("access_token", encode_access_token(body.access_token)),
     #("client", encode_client(body.client)),
-    #("interact", encode_interact(body.interact)),
-  ])
+  ]
+  |> optional_field("interact", body.interact, encode_interact)
+  |> json.object
 }
 
 fn decode_incoming_action() -> decode.Decoder(IncomingAction) {
