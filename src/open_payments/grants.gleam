@@ -457,6 +457,7 @@ pub fn request(
     url,
     http.Post,
     body,
+    token: None,
   ))
 
   json.parse(response_body, decode_grant_response())
@@ -470,4 +471,49 @@ pub fn is_interactive_grant(grant: GrantResponse) -> Bool {
     PendingGrant(..) -> True
     Grant(..) -> False
   }
+}
+
+pub type ContinuationResponse {
+  ContinuationResponse(
+    access_token: Option(AccessTokenResponse),
+    continue: ContinueResponse,
+  )
+}
+
+fn encode_continue_body(interact_ref: String) -> Json {
+  json.object([#("interact_ref", json.string(interact_ref))])
+}
+
+fn decode_continuation_response() -> decode.Decoder(ContinuationResponse) {
+  use access_token <- decode.optional_field(
+    "access_token",
+    None,
+    decode_access_token_response() |> decode.map(Some),
+  )
+  use continue <- decode.field("continue", decode_continue_response())
+  decode.success(ContinuationResponse(
+    access_token: access_token,
+    continue: continue,
+  ))
+}
+
+/// Continues a pending grant after the user has completed interaction.
+/// See https://openpayments.dev/apis/auth-server/operations/post-continue/
+pub fn continue(
+  client: Client,
+  response: ContinueResponse,
+  interact_ref: String,
+) -> Result(ContinuationResponse, String) {
+  let body = encode_continue_body(interact_ref)
+
+  use response_body <- result.try(request.send_request(
+    client,
+    response.uri,
+    http.Post,
+    body,
+    token: Some(response.access_token.value),
+  ))
+
+  json.parse(response_body, decode_continuation_response())
+  |> result.map_error(fn(_) { "Failed to parse continuation response" })
 }

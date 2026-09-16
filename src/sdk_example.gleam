@@ -1,11 +1,12 @@
+import gleam/erlang/charlist
 import gleam/io
 import gleam/option.{None, Some}
 import gleam/string
 import open_payments/client
 import open_payments/grants.{
   type GrantResponse, AccessIncoming, AccessOutgoing, AccessQuote, Amount,
-  DebitAmount, Finish, GrantOptions, IncomingRead, IncomingReadAll, Interact,
-  Limits, OutgoingCreate, QuoteCreate, QuoteRead,
+  DebitAmount, Finish, Grant, GrantOptions, IncomingRead, IncomingReadAll,
+  Interact, Limits, OutgoingCreate, PendingGrant, QuoteCreate, QuoteRead,
 }
 import open_payments/wallet_address
 
@@ -102,15 +103,42 @@ pub fn main() -> Nil {
   case response {
     Ok(grant) ->
       case grants.is_interactive_grant(grant) {
-        True -> io.println("OUTGOING grant is interactive: " <> string.inspect(grant))
+        True -> handle_pending_grant(client, grant)
         False -> panic as "Grant should require interaction!"
       }
     Error(err) -> io.println("Failed to request grant: " <> err)
   }
-
-  // See additional examples for full outgoing payments, as it needs actual interaction in the middle..
 }
 
 fn handle_approved_grant(grant: GrantResponse) {
   io.println("Grant approved: " <> string.inspect(grant))
+}
+
+fn handle_pending_grant(client: client.Client, grant: GrantResponse) -> Nil {
+  case grant {
+    PendingGrant(interact: interact, continue: continue) -> {
+      io.println("Please approve this grant by visiting: " <> interact.redirect)
+      let interact_ref = prompt("Paste the interact_ref once approved: ")
+
+      case grants.continue(client, continue, interact_ref) {
+        Ok(continuation_response) ->
+          io.println(
+            "Continuation succeeded: " <> string.inspect(continuation_response),
+          )
+        Error(err) -> io.println("Failed to continue grant: " <> err)
+      }
+    }
+    Grant(..) -> panic as "Expected a pending grant"
+  }
+}
+
+@external(erlang, "io", "get_line")
+fn erlang_get_line(prompt: charlist.Charlist) -> charlist.Charlist
+
+fn prompt(message: String) -> String {
+  message
+  |> charlist.from_string
+  |> erlang_get_line
+  |> charlist.to_string
+  |> string.trim
 }

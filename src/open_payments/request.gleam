@@ -4,7 +4,7 @@ import gleam/http/response.{type Response}
 import gleam/httpc
 import gleam/int
 import gleam/json.{type Json}
-import gleam/option.{Some}
+import gleam/option.{type Option, None, Some}
 import gleam/string
 import gleam/time/timestamp
 import http_digest_fields/content_digest
@@ -30,6 +30,7 @@ pub fn send_request(
   url: String,
   method: http.Method,
   body: Json,
+  token token: Option(String),
 ) {
   let body_string = json.to_string(body)
 
@@ -44,12 +45,28 @@ pub fn send_request(
     |> request.prepend_header("content-type", "application/json")
     |> request.prepend_header("content-digest", digest_header)
 
+  let unsigned_req = case token {
+    Some(t) ->
+      request.prepend_header(unsigned_req, "authorization", "GNAP " <> t)
+    None -> unsigned_req
+  }
+
   let #(created, _nanoseconds) =
     timestamp.system_time() |> timestamp.to_unix_seconds_and_nanoseconds
 
+  let signed_components = case token {
+    Some(_) -> [
+      Derived(Method),
+      Derived(TargetUri),
+      Field("content-digest"),
+      Field("authorization"),
+    ]
+    None -> [Derived(Method), Derived(TargetUri), Field("content-digest")]
+  }
+
   let signature_params =
     SignatureParams(
-      components: [Derived(Method), Derived(TargetUri), Field("content-digest")],
+      components: signed_components,
       key_id: client.key_id,
       algorithm: "ed25519",
       created: Some(created),
