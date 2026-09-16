@@ -456,7 +456,7 @@ pub fn request(
     client,
     url,
     http.Post,
-    body,
+    Some(body),
     token: None,
   ))
 
@@ -510,10 +510,28 @@ pub fn continue(
     client,
     response.uri,
     http.Post,
-    body,
+    Some(body),
     token: Some(response.access_token.value),
   ))
 
   json.parse(response_body, decode_continuation_response())
   |> result.map_error(fn(_) { "Failed to parse continuation response" })
+}
+
+/// Cancels a pending grant request, invalidating its continuation so it can
+/// no longer be used to continue or retrieve the grant.
+/// See https://openpayments.dev/apis/auth-server/operations/delete-continue/
+pub fn cancel(
+  client: Client,
+  response: ContinueResponse,
+) -> Result(Nil, String) {
+  use _ <- result.try(request.send_request(
+    client,
+    response.uri,
+    http.Delete,
+    None,
+    token: Some(response.access_token.value),
+  ))
+
+  Ok(Nil)
 }

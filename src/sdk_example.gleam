@@ -2,13 +2,14 @@ import gleam/erlang/charlist
 import gleam/int
 import gleam/io
 import gleam/list
-import gleam/option.{None, Some}
+import gleam/option.{type Option, None, Some}
 import gleam/string
 import open_payments/client
 import open_payments/grants.{
-  type GrantResponse, AccessIncoming, AccessOutgoing, AccessQuote, Amount,
-  DebitAmount, Finish, Grant, GrantOptions, IncomingRead, IncomingReadAll,
-  Interact, Limits, OutgoingCreate, PendingGrant, QuoteCreate, QuoteRead,
+  type GrantOptions, type GrantResponse, AccessIncoming, AccessOutgoing,
+  AccessQuote, Amount, DebitAmount, Finish, Grant, GrantOptions, IncomingRead,
+  IncomingReadAll, Interact, Limits, OutgoingCreate, PendingGrant, QuoteCreate,
+  QuoteRead,
 }
 import open_payments/types.{type Key}
 import open_payments/wallet_address.{type WalletInfo}
@@ -45,14 +46,7 @@ pub fn main() -> Nil {
   let grant_options =
     GrantOptions(address_info.auth_server, access, interact, address)
 
-  case grants.request(client, grant_options) {
-    Ok(grant) ->
-      case grants.is_interactive_grant(grant) {
-        True -> panic as "Grant should not require interaction!"
-        False -> handle_approved_grant(grant)
-      }
-    Error(err) -> print_error("Failed to request grant", err)
-  }
+  let incoming_grant_continue = request_incoming_grant(client, grant_options)
 
   section("Quote grant")
 
@@ -69,7 +63,7 @@ pub fn main() -> Nil {
     Ok(grant) ->
       case grants.is_interactive_grant(grant) {
         True -> panic as "Grant should not require interaction!"
-        False -> handle_approved_grant(grant)
+        False -> print_grant(grant)
       }
     Error(err) -> print_error("Failed to request grant", err)
   }
@@ -108,10 +102,40 @@ pub fn main() -> Nil {
       }
     Error(err) -> print_error("Failed to request grant", err)
   }
+
+  section("Cancel incoming payment grant")
+
+  case incoming_grant_continue {
+    Some(continue) ->
+      case grants.cancel(client, continue) {
+        Ok(_) -> io.println("  Grant canceled.")
+        Error(err) -> print_error("Failed to cancel grant", err)
+      }
+    None -> io.println("  Skipped: no grant to cancel.")
+  }
 }
 
-fn handle_approved_grant(grant: GrantResponse) -> Nil {
-  print_grant(grant)
+fn request_incoming_grant(
+  client: client.Client,
+  grant_options: GrantOptions,
+) -> Option(grants.ContinueResponse) {
+  case grants.request(client, grant_options) {
+    Ok(grant) ->
+      case grants.is_interactive_grant(grant) {
+        True -> panic as "Grant should not require interaction!"
+        False -> {
+          print_grant(grant)
+          case grant {
+            Grant(continue: continue, ..) -> Some(continue)
+            PendingGrant(..) -> None
+          }
+        }
+      }
+    Error(err) -> {
+      print_error("Failed to request grant", err)
+      None
+    }
+  }
 }
 
 fn handle_pending_grant(client: client.Client, grant: GrantResponse) -> Nil {

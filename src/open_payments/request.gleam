@@ -4,6 +4,7 @@ import gleam/http/response.{type Response}
 import gleam/httpc
 import gleam/int
 import gleam/json.{type Json}
+import gleam/list
 import gleam/option.{type Option, None, Some}
 import gleam/string
 import gleam/time/timestamp
@@ -29,21 +30,34 @@ pub fn send_request(
   client: Client,
   url: String,
   method: http.Method,
-  body: Json,
+  body: Option(Json),
   token token: Option(String),
 ) {
-  let body_string = json.to_string(body)
-
-  let assert Ok(digest_header) =
-    content_digest.create_digest_header_value(body_string, "sha-512")
+  let digest_header = case body {
+    Some(b) -> {
+      let assert Ok(header) =
+        content_digest.create_digest_header_value(json.to_string(b), "sha-512")
+      Some(header)
+    }
+    None -> None
+  }
 
   let assert Ok(base_req) = request.to(url)
   let unsigned_req =
     base_req
     |> request.set_method(method)
     |> request.prepend_header("accept", "application/json")
-    |> request.prepend_header("content-type", "application/json")
-    |> request.prepend_header("content-digest", digest_header)
+
+  let unsigned_req = case body {
+    Some(_) ->
+      request.prepend_header(unsigned_req, "content-type", "application/json")
+    None -> unsigned_req
+  }
+
+  let unsigned_req = case digest_header {
+    Some(h) -> request.prepend_header(unsigned_req, "content-digest", h)
+    None -> unsigned_req
+  }
 
   let unsigned_req = case token {
     Some(t) ->
@@ -54,15 +68,16 @@ pub fn send_request(
   let #(created, _nanoseconds) =
     timestamp.system_time() |> timestamp.to_unix_seconds_and_nanoseconds
 
-  let signed_components = case token {
-    Some(_) -> [
-      Derived(Method),
-      Derived(TargetUri),
-      Field("content-digest"),
-      Field("authorization"),
-    ]
-    None -> [Derived(Method), Derived(TargetUri), Field("content-digest")]
-  }
+  let signed_components =
+    [Derived(Method), Derived(TargetUri)]
+    |> list.append(case digest_header {
+      Some(_) -> [Field("content-digest")]
+      None -> []
+    })
+    |> list.append(case token {
+      Some(_) -> [Field("authorization")]
+      None -> []
+    })
 
   let signature_params =
     SignatureParams(
@@ -83,9 +98,13 @@ pub fn send_request(
 
   let req =
     unsigned_req
-    |> request.set_body(body_string)
     |> request.prepend_header("signature-input", signed.signature_input)
     |> request.prepend_header("signature", signed.signature)
+
+  let req = case body {
+    Some(b) -> request.set_body(req, json.to_string(b))
+    None -> req
+  }
 
   let resp = httpc.send(req)
 
@@ -96,7 +115,7 @@ fn handle_response(
   resp: Result(Response(String), httpc.HttpError),
 ) -> Result(String, String) {
   case resp {
-    Ok(resp) if resp.status == 200 -> Ok(resp.body)
+    Ok(resp) if resp.status == 200 || resp.status == 204 -> Ok(resp.body)
     Ok(resp) ->
       Error(
         "Request failed with status "
