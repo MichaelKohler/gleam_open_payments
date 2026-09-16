@@ -2,7 +2,6 @@ import gleam/dynamic/decode
 import gleam/http
 import gleam/json.{type Json}
 import gleam/option.{type Option, None, Some}
-import gleam/result
 import open_payments/client.{type Client}
 import open_payments/request
 import open_payments/types.{
@@ -80,16 +79,15 @@ pub fn create(
   let url = options.resource_server <> "/quotes"
   let body = encode_create_body(options)
 
-  use response_body <- result.try(request.send_request(
+  request.send_and_decode(
     client,
     url,
     http.Post,
     Some(body),
     token: Some(access_token),
-  ))
-
-  json.parse(response_body, decode_quote())
-  |> result.map_error(fn(_) { "Failed to parse quote response" })
+    decoder: decode_quote(),
+    error_context: "Failed to parse quote response",
+  )
 }
 
 /// Fetches the latest state of a quote.
@@ -100,14 +98,13 @@ pub fn get(
   access_token: String,
   id: String,
 ) -> Result(Quote, String) {
-  use response_body <- result.try(request.send_request(
+  request.send_and_decode(
     client,
     id,
     http.Get,
     None,
     token: Some(access_token),
-  ))
-
-  json.parse(response_body, decode_quote())
-  |> result.map_error(fn(_) { "Failed to parse quote response" })
+    decoder: decode_quote(),
+    error_context: "Failed to parse quote response",
+  )
 }

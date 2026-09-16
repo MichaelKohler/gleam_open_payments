@@ -207,16 +207,15 @@ pub fn request(
     )
     |> encode_body
 
-  use response_body <- result.try(request.send_request(
+  request.send_and_decode(
     client,
     url,
     http.Post,
     Some(body),
     token: None,
-  ))
-
-  json.parse(response_body, decode_grant_response())
-  |> result.map_error(fn(_) { "Failed to parse grant response" })
+    decoder: decode_grant_response(),
+    error_context: "Failed to parse grant response",
+  )
 }
 
 /// Returns `True` if the grant requires the user to complete an interaction
@@ -265,16 +264,15 @@ pub fn continue(
 ) -> Result(ContinuationResponse, String) {
   let body = encode_continue_body(interact_ref)
 
-  use response_body <- result.try(request.send_request(
+  request.send_and_decode(
     client,
     response.uri,
     http.Post,
     Some(body),
     token: Some(response.access_token.value),
-  ))
-
-  json.parse(response_body, decode_continuation_response())
-  |> result.map_error(fn(_) { "Failed to parse continuation response" })
+    decoder: decode_continuation_response(),
+    error_context: "Failed to parse continuation response",
+  )
 }
 
 /// Cancels a pending grant request, invalidating its continuation so it can

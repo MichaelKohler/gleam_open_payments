@@ -1,6 +1,5 @@
 import gleam/dynamic/decode
 import gleam/http
-import gleam/json
 import gleam/option.{None, Some}
 import gleam/result
 import open_payments/client.{type Client}
@@ -27,16 +26,15 @@ pub fn rotate(
   client: Client,
   access_token: AccessTokenResponse,
 ) -> Result(AccessTokenResponse, String) {
-  use response_body <- result.try(request.send_request(
+  request.send_and_decode(
     client,
     access_token.manage,
     http.Post,
     None,
     token: Some(access_token.value),
-  ))
-
-  json.parse(response_body, decode_rotate_response())
-  |> result.map_error(fn(_) { "Failed to parse access token response" })
+    decoder: decode_rotate_response(),
+    error_context: "Failed to parse access token response",
+  )
 }
 
 /// Revokes an access token, invalidating it immediately. The token's

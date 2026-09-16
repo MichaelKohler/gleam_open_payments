@@ -1,3 +1,4 @@
+import gleam/dynamic/decode
 import gleam/http
 import gleam/http/request
 import gleam/http/response.{type Response}
@@ -124,6 +125,32 @@ pub fn send_request(
   let resp = httpc.send(req)
 
   handle_response(resp)
+}
+
+/// Sends a signed request via `send_request` and decodes the JSON response
+/// body with `decoder`. A decode failure is wrapped as
+/// `error_context <> ": " <> <the underlying decode error>`, so callers get
+/// a message that both names the response and shows what went wrong parsing
+/// it.
+pub fn send_and_decode(
+  client: Client,
+  url: String,
+  method: http.Method,
+  body: Option(Json),
+  token token: Option(String),
+  decoder decoder: decode.Decoder(a),
+  error_context error_context: String,
+) -> Result(a, String) {
+  use response_body <- result.try(send_request(
+    client,
+    url,
+    method,
+    body,
+    token: token,
+  ))
+
+  json.parse(response_body, decoder)
+  |> result.map_error(fn(err) { error_context <> ": " <> string.inspect(err) })
 }
 
 @internal

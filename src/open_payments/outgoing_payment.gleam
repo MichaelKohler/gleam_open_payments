@@ -4,7 +4,6 @@ import gleam/http
 import gleam/int
 import gleam/json.{type Json}
 import gleam/option.{type Option, None, Some}
-import gleam/result
 import gleam/uri
 import open_payments/client.{type Client}
 import open_payments/request
@@ -172,16 +171,15 @@ pub fn create(
   let url = options.resource_server <> "/outgoing-payments"
   let body = encode_create_body(options)
 
-  use response_body <- result.try(request.send_request(
+  request.send_and_decode(
     client,
     url,
     http.Post,
     Some(body),
     token: Some(access_token),
-  ))
-
-  json.parse(response_body, decode_outgoing_payment())
-  |> result.map_error(fn(_) { "Failed to parse outgoing payment response" })
+    decoder: decode_outgoing_payment(),
+    error_context: "Failed to parse outgoing payment response",
+  )
 }
 
 /// Lists the outgoing payments on the given wallet address.
@@ -202,16 +200,15 @@ pub fn list(
     <> "/outgoing-payments?"
     <> uri.query_to_string(query)
 
-  use response_body <- result.try(request.send_request(
+  request.send_and_decode(
     client,
     url,
     http.Get,
     None,
     token: Some(access_token),
-  ))
-
-  json.parse(response_body, decode_outgoing_payment_list())
-  |> result.map_error(fn(_) { "Failed to parse outgoing payment list response" })
+    decoder: decode_outgoing_payment_list(),
+    error_context: "Failed to parse outgoing payment list response",
+  )
 }
 
 /// Fetches the latest state of an outgoing payment.
@@ -222,16 +219,15 @@ pub fn get(
   access_token: String,
   id: String,
 ) -> Result(OutgoingPayment, String) {
-  use response_body <- result.try(request.send_request(
+  request.send_and_decode(
     client,
     id,
     http.Get,
     None,
     token: Some(access_token),
-  ))
-
-  json.parse(response_body, decode_outgoing_payment())
-  |> result.map_error(fn(_) { "Failed to parse outgoing payment response" })
+    decoder: decode_outgoing_payment(),
+    error_context: "Failed to parse outgoing payment response",
+  )
 }
 
 /// Fetches the amounts already spent under the outgoing payment grant
@@ -244,16 +240,13 @@ pub fn get_grant_spent_amounts(
 ) -> Result(GrantSpentAmounts, String) {
   let url = resource_server <> "/outgoing-payment-grant"
 
-  use response_body <- result.try(request.send_request(
+  request.send_and_decode(
     client,
     url,
     http.Get,
     None,
     token: Some(access_token),
-  ))
-
-  json.parse(response_body, decode_grant_spent_amounts())
-  |> result.map_error(fn(_) {
-    "Failed to parse outgoing payment grant response"
-  })
+    decoder: decode_grant_spent_amounts(),
+    error_context: "Failed to parse outgoing payment grant response",
+  )
 }
