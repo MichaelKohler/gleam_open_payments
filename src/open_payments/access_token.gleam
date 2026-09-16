@@ -44,13 +44,12 @@ pub fn revoke(
   client: Client,
   access_token: AccessTokenResponse,
 ) -> Result(Nil, String) {
-  use _ <- result.try(request.send_request(
+  request.send_request(
     client,
     access_token.manage,
     http.Delete,
     None,
     token: Some(access_token.value),
-  ))
-
-  Ok(Nil)
+  )
+  |> result.replace(Nil)
 }

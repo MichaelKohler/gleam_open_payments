@@ -282,13 +282,12 @@ pub fn cancel(
   client: Client,
   response: ContinueResponse,
 ) -> Result(Nil, String) {
-  use _ <- result.try(request.send_request(
+  request.send_request(
     client,
     response.uri,
     http.Delete,
     None,
     token: Some(response.access_token.value),
-  ))
-
-  Ok(Nil)
+  )
+  |> result.replace(Nil)
 }

@@ -30,9 +30,9 @@ import open_payments/wallet_address.{type WalletInfo}
 pub fn main() -> Nil {
   let assert Ok(client) =
     client.create(
-      "https://ilp.interledger-test.dev/michaelusd",
-      "be52ffa9-b61b-4a8c-8dbe-43b75cda31c9",
-      "fixtures/private_key",
+      wallet_address_url: "https://ilp.interledger-test.dev/michaelusd",
+      key_id: "be52ffa9-b61b-4a8c-8dbe-43b75cda31c9",
+      private_key_path: "fixtures/private_key",
     )
   let sender_address = "https://ilp.interledger-test.dev/michaelusd"
   let receiver_address = "https://ilp.interledger-test.dev/michaeleur"
@@ -78,18 +78,18 @@ fn request_incoming_payment_grant_section(
 
   let access =
     AccessIncoming(
-      [
+      actions: [
         IncomingCreate, IncomingRead, IncomingReadAll, IncomingList,
         IncomingComplete,
       ],
-      Some(receiver_address),
+      identifier: Some(receiver_address),
     )
   let grant_options =
     GrantOptions(
-      receiver_address_info.auth_server,
-      access,
-      None,
-      receiver_address,
+      auth_server_url: receiver_address_info.auth_server,
+      access: access,
+      interact: None,
+      address: receiver_address,
     )
 
   case grants.request(client, grant_options) {
@@ -169,9 +169,9 @@ fn create_incoming_payment_section(
       resource_server: address_info.resource_server,
       wallet_address: address,
       incoming_amount: Some(Amount(
-        "10000",
-        address_info.asset_code,
-        address_info.asset_scale,
+        value: "10000",
+        asset_code: address_info.asset_code,
+        asset_scale: address_info.asset_scale,
       )),
       expires_at: None,
       metadata: None,
@@ -260,7 +260,12 @@ fn request_quote_grant_section(
 
   let access = AccessQuote([QuoteRead, QuoteCreate])
   let grant_options =
-    GrantOptions(sender_address_info.auth_server, access, None, sender_address)
+    GrantOptions(
+      auth_server_url: sender_address_info.auth_server,
+      access: access,
+      interact: None,
+      address: sender_address,
+    )
 
   case grants.request(client, grant_options) {
     Ok(grant) ->
@@ -330,9 +335,9 @@ fn create_quote_section(
       wallet_address: sender_address,
       receiver: incoming_payment_id,
       amount: DebitAmount(Amount(
-        "5000",
-        sender_address_info.asset_code,
-        sender_address_info.asset_scale,
+        value: "5000",
+        asset_code: sender_address_info.asset_code,
+        asset_scale: sender_address_info.asset_scale,
       )),
     )
 
@@ -375,9 +380,9 @@ fn request_outgoing_payment_grant_section(
   let assert Ok(quote_debit_value) = int.parse(quote.debit_amount.value)
   let total_debit_amount =
     Amount(
-      int.to_string(quote_debit_value + 4999),
-      quote.debit_amount.asset_code,
-      quote.debit_amount.asset_scale,
+      value: int.to_string(quote_debit_value + 4999),
+      asset_code: quote.debit_amount.asset_code,
+      asset_scale: quote.debit_amount.asset_scale,
     )
   let limits =
     Limits(
@@ -393,15 +398,19 @@ fn request_outgoing_payment_grant_section(
     )
   let interact =
     Interact(
-      ["redirect"],
-      Some(Finish("redirect", "https://example.com/finish", "nonce")),
+      start: ["redirect"],
+      finish: Some(Finish(
+        method: "redirect",
+        uri: "https://example.com/finish",
+        nonce: "nonce",
+      )),
     )
   let grant_options =
     GrantOptions(
-      sender_address_info.auth_server,
-      access,
-      Some(interact),
-      sender_address,
+      auth_server_url: sender_address_info.auth_server,
+      access: access,
+      interact: Some(interact),
+      address: sender_address,
     )
 
   case grants.request(client, grant_options) {
@@ -481,9 +490,9 @@ fn run_outgoing_payment_flow(
       // unpaid, reusing the same access token from the grant above.
       let debit_amount =
         Amount(
-          "4999",
-          sender_address_info.asset_code,
-          sender_address_info.asset_scale,
+          value: "4999",
+          asset_code: sender_address_info.asset_code,
+          asset_scale: sender_address_info.asset_scale,
         )
       case
         create_second_outgoing_payment_section(
@@ -537,7 +546,10 @@ fn create_second_outgoing_payment_section(
     outgoing_payment.CreateOptions(
       resource_server: address_info.resource_server,
       wallet_address: address,
-      source: FromIncomingPayment(incoming_payment_id, debit_amount),
+      source: FromIncomingPayment(
+        incoming_payment: incoming_payment_id,
+        debit_amount: debit_amount,
+      ),
       metadata: None,
     )
 
