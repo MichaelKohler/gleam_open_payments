@@ -20,9 +20,7 @@ import open_payments/outgoing_payment.{
   FromIncomingPayment, FromQuote,
 }
 import open_payments/quotes.{type Quote}
-import open_payments/types.{
-  type Amount, type Key, Amount, DebitAmount, ReceiveAmount,
-}
+import open_payments/types.{type Amount, type Key, Amount, DebitAmount}
 import open_payments/wallet_address.{type WalletInfo}
 
 pub fn main() -> Nil {
@@ -144,7 +142,6 @@ fn run_incoming_payment_flow(
         client,
         sender_address_info,
         sender_address,
-        receiver_address_info,
         payment.id,
       )
       complete_incoming_payment_section(client, access_token, payment.id)
@@ -253,7 +250,6 @@ fn request_quote_grant_section(
   client: client.Client,
   sender_address_info: WalletInfo,
   sender_address: String,
-  receiver_address_info: WalletInfo,
   incoming_payment_id: String,
 ) -> Nil {
   section("Quote grant")
@@ -274,7 +270,6 @@ fn request_quote_grant_section(
                 client,
                 sender_address_info,
                 sender_address,
-                receiver_address_info,
                 token.value,
                 incoming_payment_id,
               )
@@ -290,7 +285,6 @@ fn run_quote_operations(
   client: client.Client,
   sender_address_info: WalletInfo,
   sender_address: String,
-  receiver_address_info: WalletInfo,
   access_token: String,
   incoming_payment_id: String,
 ) -> Nil {
@@ -300,7 +294,6 @@ fn run_quote_operations(
       access_token,
       sender_address_info,
       sender_address,
-      receiver_address_info,
       incoming_payment_id,
     )
   {
@@ -323,7 +316,6 @@ fn create_quote_section(
   access_token: String,
   sender_address_info: WalletInfo,
   sender_address: String,
-  receiver_address_info: WalletInfo,
   incoming_payment_id: String,
 ) -> Result(Quote, String) {
   section("Create quote")
@@ -333,10 +325,10 @@ fn create_quote_section(
       resource_server: sender_address_info.resource_server,
       wallet_address: sender_address,
       receiver: incoming_payment_id,
-      amount: ReceiveAmount(Amount(
+      amount: DebitAmount(Amount(
         "5000",
-        receiver_address_info.asset_code,
-        receiver_address_info.asset_scale,
+        sender_address_info.asset_code,
+        sender_address_info.asset_scale,
       )),
     )
 
