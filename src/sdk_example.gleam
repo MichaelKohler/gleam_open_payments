@@ -28,7 +28,7 @@ import open_payments/types.{
 import open_payments/wallet_address.{type WalletInfo}
 
 pub fn main() -> Nil {
-  let client =
+  let assert Ok(client) =
     client.create(
       "https://ilp.interledger-test.dev/michaelusd",
       "be52ffa9-b61b-4a8c-8dbe-43b75cda31c9",

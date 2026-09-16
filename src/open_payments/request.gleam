@@ -6,11 +6,11 @@ import gleam/int
 import gleam/json.{type Json}
 import gleam/list
 import gleam/option.{type Option, None, Some}
+import gleam/result
 import gleam/string
 import gleam/time/timestamp
 import http_digest_fields/content_digest
 import http_message_signatures/component.{Derived, Field, Method, TargetUri}
-import http_message_signatures/keys
 import http_message_signatures/message
 import http_message_signatures/params.{SignatureParams}
 import http_message_signatures/signer
@@ -21,8 +21,10 @@ const signature_max_age_seconds = 300
 /// Sends an unsigned GET request to `url` and returns the response body.
 /// Used for endpoints that don't require an access token or request
 /// signature, such as fetching wallet address details.
-pub fn send_unauthenticated_request(url: String) {
-  let assert Ok(base_req) = request.to(url)
+pub fn send_unauthenticated_request(url: String) -> Result(String, String) {
+  use base_req <- result.try(
+    request.to(url) |> result.replace_error("Invalid URL: " <> url),
+  )
   let req = request.prepend_header(base_req, "accept", "application/json")
   let resp = httpc.send(req)
 
@@ -39,17 +41,21 @@ pub fn send_request(
   method: http.Method,
   body: Option(Json),
   token token: Option(String),
-) {
-  let digest_header = case body {
-    Some(b) -> {
-      let assert Ok(header) =
-        content_digest.create_digest_header_value(json.to_string(b), "sha-512")
-      Some(header)
-    }
-    None -> None
-  }
+) -> Result(String, String) {
+  use digest_header <- result.try(case body {
+    Some(b) ->
+      content_digest.create_digest_header_value(json.to_string(b), "sha-512")
+      |> result.map(Some)
+      |> result.map_error(fn(err) {
+        "Failed to create content digest: " <> string.inspect(err)
+      })
+    None -> Ok(None)
+  })
 
-  let assert Ok(base_req) = request.to(url)
+  use base_req <- result.try(
+    request.to(url) |> result.replace_error("Invalid URL: " <> url),
+  )
+
   let unsigned_req =
     base_req
     |> request.set_method(method)
@@ -98,10 +104,12 @@ pub fn send_request(
   let message_to_sign =
     message.Request(http.method_to_string(method), url, unsigned_req.headers)
 
-  let assert Ok(#(private_key, _public_key)) =
-    keys.key_pair_from_pem(client.private_key)
-  let assert Ok(signed) =
-    signer.sign(message_to_sign, private_key, "sig1", signature_params)
+  use signed <- result.try(
+    signer.sign(message_to_sign, client.private_key, "sig1", signature_params)
+    |> result.map_error(fn(err) {
+      "Failed to sign request: " <> string.inspect(err)
+    }),
+  )
 
   let req =
     unsigned_req
