@@ -290,13 +290,22 @@ fn print_continuation(continuation: grants.ContinuationResponse) -> Nil {
   }
 }
 
+fn format_amount_value(value: String, scale: Int) -> String {
+  case scale <= 0 {
+    True -> value
+    False -> {
+      let padded = string.pad_start(value, to: scale + 1, with: "0")
+      let whole = string.slice(padded, 0, string.length(padded) - scale)
+      let fraction = string.slice(padded, -scale, scale)
+      whole <> "." <> fraction
+    }
+  }
+}
+
 fn print_amount(amount: Amount) -> String {
-  amount.value
+  format_amount_value(amount.value, amount.asset_scale)
   <> " "
   <> amount.asset_code
-  <> " (scale "
-  <> int.to_string(amount.asset_scale)
-  <> ")"
 }
 
 fn print_incoming_payment(payment: IncomingPayment) -> Nil {
