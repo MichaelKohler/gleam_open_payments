@@ -1,4 +1,5 @@
 import gleam/erlang/charlist
+import gleam/erlang/process
 import gleam/int
 import gleam/io
 import gleam/list
@@ -31,11 +32,20 @@ pub fn main() -> Nil {
       "be52ffa9-b61b-4a8c-8dbe-43b75cda31c9",
       "fixtures/private_key",
     )
-  let address = "https://ilp.interledger-test.dev/michaeleur"
+  let sender_address = "https://ilp.interledger-test.dev/michaelusd"
+  let receiver_address = "https://ilp.interledger-test.dev/michaeleur"
 
-  let address_info = fetch_wallet_address_section(address)
-  fetch_wallet_keys_section(address)
-  request_incoming_payment_grant_section(client, address_info, address)
+  let sender_address_info = fetch_wallet_address_section(sender_address)
+  fetch_wallet_keys_section(sender_address)
+  let receiver_address_info = fetch_wallet_address_section(receiver_address)
+  fetch_wallet_keys_section(receiver_address)
+  request_incoming_payment_grant_section(
+    client,
+    sender_address_info,
+    sender_address,
+    receiver_address_info,
+    receiver_address,
+  )
 }
 
 fn fetch_wallet_address_section(address: String) -> WalletInfo {
@@ -57,8 +67,10 @@ fn fetch_wallet_keys_section(address: String) -> Nil {
 
 fn request_incoming_payment_grant_section(
   client: client.Client,
-  address_info: WalletInfo,
-  address: String,
+  sender_address_info: WalletInfo,
+  sender_address: String,
+  receiver_address_info: WalletInfo,
+  receiver_address: String,
 ) -> Nil {
   section("Incoming payment grant")
 
@@ -68,10 +80,15 @@ fn request_incoming_payment_grant_section(
         IncomingCreate, IncomingRead, IncomingReadAll, IncomingList,
         IncomingComplete,
       ],
-      Some(address),
+      Some(receiver_address),
     )
   let grant_options =
-    GrantOptions(address_info.auth_server, access, None, address)
+    GrantOptions(
+      receiver_address_info.auth_server,
+      access,
+      None,
+      receiver_address,
+    )
 
   case grants.request(client, grant_options) {
     Ok(grant) ->
@@ -83,8 +100,10 @@ fn request_incoming_payment_grant_section(
             Grant(access_token: token, continue: continue) ->
               run_incoming_payment_flow(
                 client,
-                address_info,
-                address,
+                sender_address_info,
+                sender_address,
+                receiver_address_info,
+                receiver_address,
                 token.value,
                 continue,
               )
@@ -98,23 +117,36 @@ fn request_incoming_payment_grant_section(
 
 fn run_incoming_payment_flow(
   client: client.Client,
-  address_info: WalletInfo,
-  address: String,
+  sender_address_info: WalletInfo,
+  sender_address: String,
+  receiver_address_info: WalletInfo,
+  receiver_address: String,
   access_token: String,
   continue: grants.ContinueResponse,
 ) -> Nil {
   case
-    create_incoming_payment_section(client, access_token, address_info, address)
+    create_incoming_payment_section(
+      client,
+      access_token,
+      receiver_address_info,
+      receiver_address,
+    )
   {
     Ok(payment) -> {
       list_incoming_payments_section(
         client,
         access_token,
-        address_info,
-        address,
+        receiver_address_info,
+        receiver_address,
       )
       get_incoming_payment_section(client, access_token, payment.id)
-      request_quote_grant_section(client, address_info, address, payment.id)
+      request_quote_grant_section(
+        client,
+        sender_address_info,
+        sender_address,
+        receiver_address_info,
+        payment.id,
+      )
       complete_incoming_payment_section(client, access_token, payment.id)
     }
     Error(_) -> Nil
@@ -136,7 +168,7 @@ fn create_incoming_payment_section(
       resource_server: address_info.resource_server,
       wallet_address: address,
       incoming_amount: Some(Amount(
-        "200",
+        "10000",
         address_info.asset_code,
         address_info.asset_scale,
       )),
@@ -219,15 +251,16 @@ fn cancel_incoming_payment_grant_section(
 
 fn request_quote_grant_section(
   client: client.Client,
-  address_info: WalletInfo,
-  address: String,
+  sender_address_info: WalletInfo,
+  sender_address: String,
+  receiver_address_info: WalletInfo,
   incoming_payment_id: String,
 ) -> Nil {
   section("Quote grant")
 
   let access = AccessQuote([QuoteRead, QuoteCreate])
   let grant_options =
-    GrantOptions(address_info.auth_server, access, None, address)
+    GrantOptions(sender_address_info.auth_server, access, None, sender_address)
 
   case grants.request(client, grant_options) {
     Ok(grant) ->
@@ -239,8 +272,9 @@ fn request_quote_grant_section(
             Grant(access_token: token, ..) ->
               run_quote_operations(
                 client,
-                address_info,
-                address,
+                sender_address_info,
+                sender_address,
+                receiver_address_info,
                 token.value,
                 incoming_payment_id,
               )
@@ -254,8 +288,9 @@ fn request_quote_grant_section(
 
 fn run_quote_operations(
   client: client.Client,
-  address_info: WalletInfo,
-  address: String,
+  sender_address_info: WalletInfo,
+  sender_address: String,
+  receiver_address_info: WalletInfo,
   access_token: String,
   incoming_payment_id: String,
 ) -> Nil {
@@ -263,8 +298,9 @@ fn run_quote_operations(
     create_quote_section(
       client,
       access_token,
-      address_info,
-      address,
+      sender_address_info,
+      sender_address,
+      receiver_address_info,
       incoming_payment_id,
     )
   {
@@ -272,8 +308,8 @@ fn run_quote_operations(
       get_quote_section(client, access_token, quote.id)
       request_outgoing_payment_grant_section(
         client,
-        address_info,
-        address,
+        sender_address_info,
+        sender_address,
         quote,
         incoming_payment_id,
       )
@@ -285,21 +321,22 @@ fn run_quote_operations(
 fn create_quote_section(
   client: client.Client,
   access_token: String,
-  address_info: WalletInfo,
-  address: String,
+  sender_address_info: WalletInfo,
+  sender_address: String,
+  receiver_address_info: WalletInfo,
   incoming_payment_id: String,
 ) -> Result(Quote, String) {
   section("Create quote")
 
   let create_options =
     quotes.CreateOptions(
-      resource_server: address_info.resource_server,
-      wallet_address: address,
+      resource_server: sender_address_info.resource_server,
+      wallet_address: sender_address,
       receiver: incoming_payment_id,
       amount: ReceiveAmount(Amount(
-        "100",
-        address_info.asset_code,
-        address_info.asset_scale,
+        "5000",
+        receiver_address_info.asset_code,
+        receiver_address_info.asset_scale,
       )),
     )
 
@@ -330,19 +367,19 @@ fn get_quote_section(
 
 fn request_outgoing_payment_grant_section(
   client: client.Client,
-  address_info: WalletInfo,
-  address: String,
+  sender_address_info: WalletInfo,
+  sender_address: String,
   quote: Quote,
   incoming_payment_id: String,
 ) -> Nil {
   section("Outgoing payment grant")
 
   // The grant must cover both outgoing payments: the quote's debit amount,
-  // plus the 99 spent directly against the incoming payment afterwards.
+  // plus the 4999 spent directly against the incoming payment afterwards.
   let assert Ok(quote_debit_value) = int.parse(quote.debit_amount.value)
   let total_debit_amount =
     Amount(
-      int.to_string(quote_debit_value + 99),
+      int.to_string(quote_debit_value + 4999),
       quote.debit_amount.asset_code,
       quote.debit_amount.asset_scale,
     )
@@ -355,7 +392,7 @@ fn request_outgoing_payment_grant_section(
   let access =
     AccessOutgoing(
       actions: [OutgoingCreate, OutgoingRead, OutgoingReadAll, OutgoingList],
-      identifier: address,
+      identifier: sender_address,
       limits: Some(limits),
     )
   let interact =
@@ -364,7 +401,12 @@ fn request_outgoing_payment_grant_section(
       Some(Finish("redirect", "https://example.com/finish", "nonce")),
     )
   let grant_options =
-    GrantOptions(address_info.auth_server, access, Some(interact), address)
+    GrantOptions(
+      sender_address_info.auth_server,
+      access,
+      Some(interact),
+      sender_address,
+    )
 
   case grants.request(client, grant_options) {
     Ok(grant) ->
@@ -373,8 +415,8 @@ fn request_outgoing_payment_grant_section(
           handle_pending_grant(client, grant, fn(access_token) {
             run_outgoing_payment_flow(
               client,
-              address_info,
-              address,
+              sender_address_info,
+              sender_address,
               access_token,
               quote.id,
               incoming_payment_id,
@@ -415,8 +457,8 @@ fn handle_pending_grant(
 
 fn run_outgoing_payment_flow(
   client: client.Client,
-  address_info: WalletInfo,
-  address: String,
+  sender_address_info: WalletInfo,
+  sender_address: String,
   access_token: String,
   quote_id: String,
   incoming_payment_id: String,
@@ -425,8 +467,8 @@ fn run_outgoing_payment_flow(
     create_outgoing_payment_section(
       client,
       access_token,
-      address_info,
-      address,
+      sender_address_info,
+      sender_address,
       quote_id,
     )
   {
@@ -434,35 +476,50 @@ fn run_outgoing_payment_flow(
       list_outgoing_payments_section(
         client,
         access_token,
-        address_info,
-        address,
+        sender_address_info,
+        sender_address,
       )
       get_outgoing_payment_section(client, access_token, payment.id)
-      get_outgoing_payment_grant_section(client, access_token, address_info)
 
       // Fills up the remaining incoming payment amount, leaving 1 cent
       // unpaid, reusing the same access token from the grant above.
       let debit_amount =
-        Amount("99", address_info.asset_code, address_info.asset_scale)
+        Amount(
+          "4999",
+          sender_address_info.asset_code,
+          sender_address_info.asset_scale,
+        )
       case
         create_second_outgoing_payment_section(
           client,
           access_token,
-          address_info,
-          address,
+          sender_address_info,
+          sender_address,
           incoming_payment_id,
           debit_amount,
         )
       {
         Ok(second_payment) -> {
           get_outgoing_payment_section(client, access_token, second_payment.id)
-          get_outgoing_payment_grant_section(client, access_token, address_info)
+          wait_for_payments_section()
+          get_outgoing_payment_grant_section(
+            client,
+            access_token,
+            sender_address_info,
+          )
         }
         Error(_) -> Nil
       }
     }
     Error(_) -> Nil
   }
+}
+
+fn wait_for_payments_section() -> Nil {
+  section("Waiting for payments")
+
+  io.println("  Waiting a few seconds for the payments to complete...")
+  process.sleep(5000)
 }
 
 fn create_second_outgoing_payment_section(
