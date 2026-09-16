@@ -5,7 +5,14 @@ import gleam/option.{type Option, None, Some}
 /// A public key in JWK format, as published on a wallet address's JWKS
 /// endpoint or sent as part of a client-directed-identity grant request.
 pub type Key {
-  Key(kid: String, x: String, alg: String, kty: String, crv: String)
+  Key(
+    kid: String,
+    x: String,
+    alg: String,
+    kty: String,
+    crv: String,
+    use_: String,
+  )
 }
 
 /// A monetary amount, expressed as a `value` in the asset's minor

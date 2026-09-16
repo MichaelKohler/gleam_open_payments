@@ -35,6 +35,7 @@ pub fn decode_key_test() {
       #("alg", json.string("EdDSA")),
       #("kty", json.string("OKP")),
       #("crv", json.string("Ed25519")),
+      #("use", json.string("sig")),
     ])
 
   assert json.parse(json.to_string(json_value), wallet_address.decode_key())
@@ -44,12 +45,41 @@ pub fn decode_key_test() {
       alg: "EdDSA",
       kty: "OKP",
       crv: "Ed25519",
+      use_: "sig",
+    ))
+}
+
+pub fn decode_key_without_use_test() {
+  let json_value =
+    json.object([
+      #("kid", json.string("key-1")),
+      #("x", json.string("base64url-value")),
+      #("alg", json.string("EdDSA")),
+      #("kty", json.string("OKP")),
+      #("crv", json.string("Ed25519")),
+    ])
+
+  assert json.parse(json.to_string(json_value), wallet_address.decode_key())
+    == Ok(Key(
+      kid: "key-1",
+      x: "base64url-value",
+      alg: "EdDSA",
+      kty: "OKP",
+      crv: "Ed25519",
+      use_: "sig",
     ))
 }
 
 pub fn decode_keys_test() {
   let key =
-    Key(kid: "key-1", x: "value", alg: "EdDSA", kty: "OKP", crv: "Ed25519")
+    Key(
+      kid: "key-1",
+      x: "value",
+      alg: "EdDSA",
+      kty: "OKP",
+      crv: "Ed25519",
+      use_: "sig",
+    )
   let json_value =
     json.object([
       #(
@@ -61,6 +91,7 @@ pub fn decode_keys_test() {
             #("alg", json.string(k.alg)),
             #("kty", json.string(k.kty)),
             #("crv", json.string(k.crv)),
+            #("use", json.string(k.use_)),
           ])
         }),
       ),

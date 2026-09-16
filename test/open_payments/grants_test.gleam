@@ -55,10 +55,17 @@ pub fn encode_access_token_multiple_access_test() {
 
 pub fn encode_key_test() {
   let key =
-    Key(kid: "key-1", x: "value", alg: "EdDSA", kty: "OKP", crv: "Ed25519")
+    Key(
+      kid: "key-1",
+      x: "value",
+      alg: "EdDSA",
+      kty: "OKP",
+      crv: "Ed25519",
+      use_: "sig",
+    )
 
   assert json.to_string(grants.encode_key(key))
-    == "{\"kid\":\"key-1\",\"x\":\"value\",\"alg\":\"EdDSA\",\"kty\":\"OKP\",\"crv\":\"Ed25519\"}"
+    == "{\"kid\":\"key-1\",\"x\":\"value\",\"alg\":\"EdDSA\",\"kty\":\"OKP\",\"crv\":\"Ed25519\",\"use\":\"sig\"}"
 }
 
 pub fn encode_client_wallet_address_test() {
@@ -70,11 +77,18 @@ pub fn encode_client_wallet_address_test() {
 
 pub fn encode_client_directed_identity_test() {
   let key =
-    Key(kid: "key-1", x: "value", alg: "EdDSA", kty: "OKP", crv: "Ed25519")
+    Key(
+      kid: "key-1",
+      x: "value",
+      alg: "EdDSA",
+      kty: "OKP",
+      crv: "Ed25519",
+      use_: "sig",
+    )
   let client = ClientDirectedIdentity(key)
 
   assert json.to_string(grants.encode_client(client))
-    == json.to_string(grants.encode_key(key))
+    == "{\"jwk\":" <> json.to_string(grants.encode_key(key)) <> "}"
 }
 
 pub fn encode_body_test() {

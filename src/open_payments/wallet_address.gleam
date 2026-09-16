@@ -42,8 +42,9 @@ pub fn decode_key() -> decode.Decoder(Key) {
   use alg <- decode.field("alg", decode.string)
   use kty <- decode.field("kty", decode.string)
   use crv <- decode.field("crv", decode.string)
+  use use_ <- decode.optional_field("use", "sig", decode.string)
 
-  decode.success(Key(kid: kid, x: x, alg: alg, kty: kty, crv: crv))
+  decode.success(Key(kid: kid, x: x, alg: alg, kty: kty, crv: crv, use_: use_))
 }
 
 @internal

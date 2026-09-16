@@ -23,9 +23,20 @@ pub type Interact {
   Interact(start: List(String), finish: Option(Finish))
 }
 
+/// How the client making the grant request identifies itself: either
+/// directly with its public key (`jwk`), or via a wallet address whose keys
+/// the auth server can look up.
+pub type ClientType {
+  ClientDirectedIdentity(jwk: Key)
+  ClientWalletAddressObject(wallet_address: String)
+}
+
 /// The options for a grant request. `access` may list more than one access
 /// kind (e.g. incoming-payment and quote) to request them all in a single
-/// grant.
+/// grant. `client_type` defaults to identifying the client by its own
+/// wallet address (`ClientWalletAddressObject`) when left as `None`; pass
+/// `Some(ClientDirectedIdentity(key))` to identify the client by its public
+/// key instead.
 /// See https://openpayments.dev/apis/auth-server/operations/post-request/
 pub type GrantOptions {
   GrantOptions(
@@ -33,20 +44,13 @@ pub type GrantOptions {
     access: List(Access),
     interact: Option(Interact),
     address: String,
+    client_type: Option(ClientType),
   )
 }
 
 /// Wraps the `access` requested for the token issued by a grant.
 pub type AccessTokenBodyProperty {
   AccessTokenBodyProperty(access: List(Access))
-}
-
-/// How the client making the grant request identifies itself: either
-/// directly with its public key (`jwk`), or via a wallet address whose keys
-/// the auth server can look up.
-pub type ClientType {
-  ClientDirectedIdentity(jwk: Key)
-  ClientWalletAddressObject(wallet_address: String)
 }
 
 /// The request body sent to the auth server to request a grant.
@@ -116,13 +120,14 @@ pub fn encode_key(key: Key) -> Json {
     #("alg", json.string(key.alg)),
     #("kty", json.string(key.kty)),
     #("crv", json.string(key.crv)),
+    #("use", json.string(key.use_)),
   ])
 }
 
 @internal
 pub fn encode_client(client: ClientType) -> Json {
   case client {
-    ClientDirectedIdentity(jwk) -> encode_key(jwk)
+    ClientDirectedIdentity(jwk) -> json.object([#("jwk", encode_key(jwk))])
     ClientWalletAddressObject(wallet_address) -> json.string(wallet_address)
   }
 }
@@ -204,10 +209,14 @@ pub fn request(
   options: GrantOptions,
 ) -> Result(GrantResponse, OpenPaymentsError) {
   let url = options.auth_server_url
+  let client_type = case options.client_type {
+    Some(client_type) -> client_type
+    None -> ClientWalletAddressObject(client.wallet_address_url)
+  }
   let body =
     Body(
       access_token: AccessTokenBodyProperty(options.access),
-      client: ClientWalletAddressObject(client.wallet_address_url),
+      client: client_type,
       interact: options.interact,
     )
     |> encode_body

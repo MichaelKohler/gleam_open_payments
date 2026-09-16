@@ -40,6 +40,7 @@ pub fn main() -> Nil {
       [AccessIncoming([IncomingCreate], Some(receiver_address))],
       None,
       receiver_address,
+      None,
     )
   let assert Ok(Grant(access_token: incoming_token, continue: _)) =
     grants.request(client, incoming_grant_options)
@@ -94,4 +95,3 @@ wallet you control:
 ## Missing scope
 
 - Grant request with subject
-- Testing grant request with directed identity

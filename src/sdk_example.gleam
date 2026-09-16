@@ -11,7 +11,8 @@ import open_payments/error.{
   type OpenPaymentsError, ApiError, DecodeError, KeyError, TransportError,
 }
 import open_payments/grants.{
-  type GrantResponse, Finish, Grant, GrantOptions, Interact, PendingGrant,
+  type GrantResponse, ClientDirectedIdentity, Finish, Grant, GrantOptions,
+  Interact, PendingGrant,
 }
 import open_payments/incoming_payment.{
   type IncomingPayment, type IncomingPaymentList, CreateOptions, ListOptions,
@@ -47,6 +48,12 @@ pub fn main() -> Nil {
   request_incoming_payment_grant_section(
     client,
     sender_address_info,
+    sender_address,
+    receiver_address_info,
+    receiver_address,
+  )
+  request_incoming_payment_grant_with_directed_identity_section(
+    client,
     sender_address,
     receiver_address_info,
     receiver_address,
@@ -93,6 +100,7 @@ fn request_incoming_payment_grant_section(
       access: [access],
       interact: None,
       address: receiver_address,
+      client_type: None,
     )
 
   case grants.request(client, grant_options) {
@@ -253,6 +261,75 @@ fn cancel_incoming_payment_grant_section(
   }
 }
 
+/// Requests an incoming payment grant identifying the client by its public
+/// key (`ClientDirectedIdentity`) instead of by wallet address, rather than
+/// the wallet-address-based identification the other grant sections use.
+fn request_incoming_payment_grant_with_directed_identity_section(
+  client: client.Client,
+  sender_address: String,
+  receiver_address_info: WalletInfo,
+  receiver_address: String,
+) -> Nil {
+  section("Incoming payment grant (client-directed identity)")
+
+  case wallet_address.get_keys(sender_address) {
+    Ok(keys) ->
+      case list.find(keys, fn(key) { key.kid == client.key_id }) {
+        Ok(key) ->
+          request_incoming_payment_grant_with_key(
+            client,
+            key,
+            receiver_address_info,
+            receiver_address,
+          )
+        Error(_) ->
+          io.println(
+            "  No key matching the client's key ID was found on "
+            <> sender_address
+            <> "; skipping.",
+          )
+      }
+    Error(err) -> print_error("Failed to get keys", err)
+  }
+}
+
+fn request_incoming_payment_grant_with_key(
+  client: client.Client,
+  key: Key,
+  receiver_address_info: WalletInfo,
+  receiver_address: String,
+) -> Nil {
+  let access =
+    AccessIncoming(
+      actions: [IncomingCreate, IncomingRead, IncomingComplete],
+      identifier: Some(receiver_address),
+    )
+  let grant_options =
+    GrantOptions(
+      auth_server_url: receiver_address_info.auth_server,
+      access: [access],
+      interact: None,
+      address: receiver_address,
+      client_type: Some(ClientDirectedIdentity(key)),
+    )
+
+  case grants.request(client, grant_options) {
+    Ok(grant) ->
+      case grants.is_interactive_grant(grant) {
+        True -> panic as "Grant should not require interaction!"
+        False -> {
+          print_grant(grant)
+          case grant {
+            Grant(continue: continue, ..) ->
+              cancel_incoming_payment_grant_section(client, continue)
+            PendingGrant(..) -> Nil
+          }
+        }
+      }
+    Error(err) -> print_error("Failed to request grant", err)
+  }
+}
+
 fn request_quote_grant_section(
   client: client.Client,
   sender_address_info: WalletInfo,
@@ -268,6 +345,7 @@ fn request_quote_grant_section(
       access: [access],
       interact: None,
       address: sender_address,
+      client_type: None,
     )
 
   case grants.request(client, grant_options) {
@@ -414,6 +492,7 @@ fn request_outgoing_payment_grant_section(
       access: [access],
       interact: Some(interact),
       address: sender_address,
+      client_type: None,
     )
 
   case grants.request(client, grant_options) {
