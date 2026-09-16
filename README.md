@@ -3,6 +3,8 @@
 [![Package Version](https://img.shields.io/hexpm/v/open_payments)](https://hex.pm/packages/open_payments)
 [![Hex Docs](https://img.shields.io/badge/hex-docs-ffaff3)](https://open-payments-sdk.hexdocs.pm/)
 
+[Open Payments](https://openpayments.dev/) SDK for Gleam.
+
 ```sh
 gleam add open_payments@1
 ```
