@@ -1,10 +1,15 @@
 import gleam/json
+import gleam/list
 import gleam/option.{None, Some}
+import gleam/string
+import open_payments/error.{ApiError}
 import open_payments/outgoing_payment.{
-  CreateOptions, FromIncomingPayment, FromQuote, GrantSpentAmounts,
+  CreateOptions, FromIncomingPayment, FromQuote, GrantSpentAmounts, ListOptions,
   OutgoingPayment,
 }
 import open_payments/types.{Amount}
+import support/mock_server
+import support/test_client
 
 pub fn encode_create_body_from_quote_test() {
   let options =
@@ -139,4 +144,149 @@ pub fn decode_grant_spent_amounts_test() {
       spent_receive_amount: Some(Amount("100", "EUR", 2)),
       spent_debit_amount: None,
     ))
+}
+
+fn outgoing_payment_json() -> String {
+  "{\"id\":\"https://resource.example/outgoing-payments/1\",\"walletAddress\":\"https://wallet.example/sender\",\"receiver\":\"https://resource.example/incoming-payments/1\",\"receiveAmount\":{\"value\":\"480\",\"assetCode\":\"EUR\",\"assetScale\":2},\"debitAmount\":{\"value\":\"500\",\"assetCode\":\"USD\",\"assetScale\":2},\"sentAmount\":{\"value\":\"0\",\"assetCode\":\"USD\",\"assetScale\":2},\"createdAt\":\"2024-01-01T00:00:00Z\"}"
+}
+
+pub fn create_success_test() {
+  let #(base_url, subject) =
+    mock_server.start(status: 201, headers: [], body: outgoing_payment_json())
+  let client = test_client.client()
+  let options =
+    CreateOptions(
+      resource_server: base_url,
+      wallet_address: "https://wallet.example/sender",
+      source: FromQuote("https://resource.example/quotes/1"),
+      metadata: None,
+    )
+
+  let assert Ok(_) = outgoing_payment.create(client, "access-token", options)
+  let captured = mock_server.await_request(subject)
+
+  assert captured.method == "POST"
+  assert captured.path == "/outgoing-payments"
+  assert list.key_find(captured.headers, "authorization")
+    == Ok("GNAP access-token")
+  assert captured.body
+    == json.to_string(outgoing_payment.encode_create_body(options))
+}
+
+pub fn create_error_status_test() {
+  let #(base_url, _subject) =
+    mock_server.start(status: 404, headers: [], body: "not found")
+  let client = test_client.client()
+  let options =
+    CreateOptions(
+      resource_server: base_url,
+      wallet_address: "https://wallet.example/sender",
+      source: FromQuote("https://resource.example/quotes/1"),
+      metadata: None,
+    )
+
+  assert outgoing_payment.create(client, "access-token", options)
+    == Error(ApiError(status: 404, body: "not found"))
+}
+
+pub fn list_success_test() {
+  let #(base_url, subject) =
+    mock_server.start(
+      status: 200,
+      headers: [],
+      body: "{\"pagination\":{\"hasNextPage\":false,\"hasPreviousPage\":false},\"result\":[]}",
+    )
+  let client = test_client.client()
+  let options =
+    ListOptions(
+      resource_server: base_url,
+      wallet_address: "https://wallet.example/sender",
+      cursor: None,
+      first: Some(5),
+      last: None,
+    )
+
+  let assert Ok(_) = outgoing_payment.list(client, "access-token", options)
+  let captured = mock_server.await_request(subject)
+
+  assert captured.method == "GET"
+  assert string.starts_with(captured.path, "/outgoing-payments?")
+  assert string.contains(captured.path, "first=5")
+}
+
+pub fn list_error_status_test() {
+  let #(base_url, _subject) =
+    mock_server.start(status: 404, headers: [], body: "not found")
+  let client = test_client.client()
+  let options =
+    ListOptions(
+      resource_server: base_url,
+      wallet_address: "https://wallet.example/sender",
+      cursor: None,
+      first: None,
+      last: None,
+    )
+
+  assert outgoing_payment.list(client, "access-token", options)
+    == Error(ApiError(status: 404, body: "not found"))
+}
+
+pub fn get_success_test() {
+  let #(base_url, subject) =
+    mock_server.start(status: 200, headers: [], body: outgoing_payment_json())
+  let client = test_client.client()
+
+  let assert Ok(_) =
+    outgoing_payment.get(
+      client,
+      "access-token",
+      base_url <> "/outgoing-payments/1",
+    )
+  let captured = mock_server.await_request(subject)
+
+  assert captured.method == "GET"
+  assert captured.path == "/outgoing-payments/1"
+}
+
+pub fn get_error_status_test() {
+  let #(base_url, _subject) =
+    mock_server.start(status: 404, headers: [], body: "not found")
+  let client = test_client.client()
+
+  assert outgoing_payment.get(
+      client,
+      "access-token",
+      base_url <> "/outgoing-payments/1",
+    )
+    == Error(ApiError(status: 404, body: "not found"))
+}
+
+pub fn get_grant_spent_amounts_success_test() {
+  let #(base_url, subject) =
+    mock_server.start(
+      status: 200,
+      headers: [],
+      body: "{\"spentReceiveAmount\":null,\"spentDebitAmount\":null}",
+    )
+  let client = test_client.client()
+
+  let assert Ok(_) =
+    outgoing_payment.get_grant_spent_amounts(client, "access-token", base_url)
+  let captured = mock_server.await_request(subject)
+
+  assert captured.method == "GET"
+  assert captured.path == "/outgoing-payment-grant"
+}
+
+pub fn get_grant_spent_amounts_error_status_test() {
+  let #(base_url, _subject) =
+    mock_server.start(status: 404, headers: [], body: "not found")
+  let client = test_client.client()
+
+  assert outgoing_payment.get_grant_spent_amounts(
+      client,
+      "access-token",
+      base_url,
+    )
+    == Error(ApiError(status: 404, body: "not found"))
 }

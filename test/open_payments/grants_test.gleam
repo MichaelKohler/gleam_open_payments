@@ -1,5 +1,7 @@
 import gleam/json
+import gleam/list
 import gleam/option.{None, Some}
+import open_payments/error.{ApiError}
 import open_payments/grants.{
   type GrantResponse, AccessTokenBodyProperty, Body, ClientDirectedIdentity,
   ClientWalletAddressObject, ContinueAccessToken, ContinueResponse, Finish,
@@ -9,6 +11,8 @@ import open_payments/types.{
   AccessIncoming, AccessQuote, AccessTokenResponse, IncomingCreate, Key,
   QuoteCreate,
 }
+import support/mock_server
+import support/test_client
 
 pub fn encode_finish_test() {
   let finish = Finish("redirect", "https://example.com/finish", "nonce")
@@ -278,4 +282,143 @@ pub fn is_interactive_grant_grant_test() {
     )
 
   assert grants.is_interactive_grant(grant) == False
+}
+
+pub fn request_success_test() {
+  let #(base_url, subject) =
+    mock_server.start(
+      status: 200,
+      headers: [],
+      body: json.to_string(
+        json.object([
+          #(
+            "interact",
+            json.object([
+              #("redirect", json.string("https://auth.example/interact")),
+            ]),
+          ),
+          #("continue", continue_json()),
+        ]),
+      ),
+    )
+  let client = test_client.client()
+  let options =
+    grants.GrantOptions(
+      auth_server_url: base_url,
+      access: [AccessQuote([QuoteCreate])],
+      interact: None,
+      address: "https://wallet.example/sender",
+      client_type: None,
+    )
+
+  let assert Ok(_) = grants.request(client, options)
+  let captured = mock_server.await_request(subject)
+
+  assert captured.method == "POST"
+  assert list.key_find(captured.headers, "authorization") == Error(Nil)
+  assert captured.body
+    == json.to_string(
+      json.object([
+        #(
+          "access_token",
+          json.object([
+            #(
+              "access",
+              json.array([AccessQuote([QuoteCreate])], types.encode_access),
+            ),
+          ]),
+        ),
+        #("client", json.string("https://ilp.interledger-test.dev/michaelusd")),
+      ]),
+    )
+}
+
+pub fn request_error_status_test() {
+  let #(base_url, _subject) =
+    mock_server.start(status: 404, headers: [], body: "not found")
+  let client = test_client.client()
+  let options =
+    grants.GrantOptions(
+      auth_server_url: base_url,
+      access: [AccessQuote([QuoteCreate])],
+      interact: None,
+      address: "https://wallet.example/sender",
+      client_type: None,
+    )
+
+  assert grants.request(client, options)
+    == Error(ApiError(status: 404, body: "not found"))
+}
+
+pub fn continue_success_test() {
+  let #(base_url, subject) =
+    mock_server.start(
+      status: 200,
+      headers: [],
+      body: json.to_string(json.object([#("continue", continue_json())])),
+    )
+  let client = test_client.client()
+  let response =
+    ContinueResponse(
+      access_token: ContinueAccessToken("continue-access-token"),
+      uri: base_url,
+      wait: None,
+    )
+
+  let assert Ok(_) = grants.continue(client, response, "interact-ref-value")
+  let captured = mock_server.await_request(subject)
+
+  assert captured.method == "POST"
+  assert captured.body == "{\"interact_ref\":\"interact-ref-value\"}"
+  assert list.key_find(captured.headers, "authorization")
+    == Ok("GNAP continue-access-token")
+}
+
+pub fn continue_error_status_test() {
+  let #(base_url, _subject) =
+    mock_server.start(status: 404, headers: [], body: "not found")
+  let client = test_client.client()
+  let response =
+    ContinueResponse(
+      access_token: ContinueAccessToken("continue-access-token"),
+      uri: base_url,
+      wait: None,
+    )
+
+  assert grants.continue(client, response, "interact-ref-value")
+    == Error(ApiError(status: 404, body: "not found"))
+}
+
+pub fn cancel_success_test() {
+  let #(base_url, subject) =
+    mock_server.start(status: 204, headers: [], body: "")
+  let client = test_client.client()
+  let response =
+    ContinueResponse(
+      access_token: ContinueAccessToken("continue-access-token"),
+      uri: base_url,
+      wait: None,
+    )
+
+  assert grants.cancel(client, response) == Ok(Nil)
+
+  let captured = mock_server.await_request(subject)
+  assert captured.method == "DELETE"
+  assert list.key_find(captured.headers, "authorization")
+    == Ok("GNAP continue-access-token")
+}
+
+pub fn cancel_error_status_test() {
+  let #(base_url, _subject) =
+    mock_server.start(status: 404, headers: [], body: "not found")
+  let client = test_client.client()
+  let response =
+    ContinueResponse(
+      access_token: ContinueAccessToken("continue-access-token"),
+      uri: base_url,
+      wait: None,
+    )
+
+  assert grants.cancel(client, response)
+    == Error(ApiError(status: 404, body: "not found"))
 }

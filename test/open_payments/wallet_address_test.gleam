@@ -1,6 +1,9 @@
 import gleam/json
+import gleam/list
+import open_payments/error.{ApiError}
 import open_payments/types.{Key}
 import open_payments/wallet_address.{WalletInfo}
+import support/mock_server
 
 pub fn decode_wallet_info_test() {
   let json_value =
@@ -99,4 +102,47 @@ pub fn decode_keys_test() {
 
   assert json.parse(json.to_string(json_value), wallet_address.decode_keys())
     == Ok([key])
+}
+
+pub fn get_success_test() {
+  let #(base_url, subject) =
+    mock_server.start(
+      status: 200,
+      headers: [],
+      body: "{\"id\":\"https://wallet.example/alice\",\"publicName\":\"Alice\",\"assetCode\":\"USD\",\"assetScale\":2,\"authServer\":\"https://auth.example\",\"resourceServer\":\"https://resource.example\"}",
+    )
+
+  let assert Ok(_) = wallet_address.get(base_url)
+  let captured = mock_server.await_request(subject)
+
+  assert captured.method == "GET"
+  assert captured.path == "/"
+  assert list.key_find(captured.headers, "authorization") == Error(Nil)
+}
+
+pub fn get_error_status_test() {
+  let #(base_url, _subject) =
+    mock_server.start(status: 404, headers: [], body: "not found")
+
+  assert wallet_address.get(base_url)
+    == Error(ApiError(status: 404, body: "not found"))
+}
+
+pub fn get_keys_success_test() {
+  let #(base_url, subject) =
+    mock_server.start(status: 200, headers: [], body: "{\"keys\":[]}")
+
+  let assert Ok(_) = wallet_address.get_keys(base_url)
+  let captured = mock_server.await_request(subject)
+
+  assert captured.method == "GET"
+  assert captured.path == "/jwks.json"
+}
+
+pub fn get_keys_error_status_test() {
+  let #(base_url, _subject) =
+    mock_server.start(status: 404, headers: [], body: "not found")
+
+  assert wallet_address.get_keys(base_url)
+    == Error(ApiError(status: 404, body: "not found"))
 }
