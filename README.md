@@ -69,7 +69,7 @@ pub fn main() -> Nil {
 }
 ```
 
-Note that this example only creates an incoming payment, and no outgoing payment. Check the `sdk_example.gleam` file for a full end-to-end example.
+Note that this example only creates an incoming payment, and no outgoing payment. Check the `test/sdk_example.gleam` file for a full end-to-end example.
 
 Further documentation can be found at <https://open-payments.hexdocs.pm/>.
 
@@ -80,13 +80,13 @@ gleam run   # Run the project
 gleam test  # Run the tests
 ```
 
-Running `gleam run -m sdk_example` executes `src/sdk_example.gleam`, which sends signed
+Running `gleam run -m sdk_example` executes `test/sdk_example.gleam`, which sends signed
 requests against a real Open Payments wallet, so it needs credentials for a
 wallet you control:
 
 - Create `fixtures/private_key` (git-ignored, not committed) with the PEM
   private key matching a public key registered on your wallet address.
-- In `src/sdk_example.gleam`, update the wallet address and key ID passed to
+- In `test/sdk_example.gleam`, update the wallet address and key ID passed to
   `client.create` to match your own wallet address and the ID of the key you
   registered there — the ones currently in the file are specific to the
   original author's test wallet and will fail signature verification for
