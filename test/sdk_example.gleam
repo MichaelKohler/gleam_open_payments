@@ -12,7 +12,7 @@ import open_payments/error.{
 }
 import open_payments/grants.{
   type GrantResponse, ClientDirectedIdentity, Finish, Grant, GrantOptions,
-  Interact, PendingGrant,
+  Interact, PendingGrant, Subject, SubjectId, SubjectIdFormatUri,
 }
 import open_payments/incoming_payment.{
   type IncomingPayment, type IncomingPaymentList, CreateOptions, ListOptions,
@@ -58,6 +58,11 @@ pub fn main() -> Nil {
     receiver_address_info,
     receiver_address,
   )
+  request_subject_identification_grant_section(
+    client,
+    sender_address_info,
+    sender_address,
+  )
 }
 
 fn fetch_wallet_address_section(address: String) -> WalletInfo {
@@ -101,6 +106,7 @@ fn request_incoming_payment_grant_section(
       interact: None,
       address: receiver_address,
       client_type: None,
+      subject: None,
     )
 
   case grants.request(client, grant_options) {
@@ -311,6 +317,7 @@ fn request_incoming_payment_grant_with_key(
       interact: None,
       address: receiver_address,
       client_type: Some(ClientDirectedIdentity(key)),
+      subject: None,
     )
 
   case grants.request(client, grant_options) {
@@ -325,6 +332,51 @@ fn request_incoming_payment_grant_with_key(
             PendingGrant(..) -> Nil
           }
         }
+      }
+    Error(err) -> print_error("Failed to request grant", err)
+  }
+}
+
+/// Requests a grant identifying a subject (the sender's own wallet address)
+/// instead of an access token. `interact` is required for this grant type,
+/// so the subject information is only returned once the user completes
+/// interaction and the grant is continued.
+/// See https://openpayments.dev/apis/auth-server/operations/post-request/
+fn request_subject_identification_grant_section(
+  client: client.Client,
+  sender_address_info: WalletInfo,
+  sender_address: String,
+) -> Nil {
+  section("Subject identification grant")
+
+  let subject =
+    Subject(sub_ids: [
+      SubjectId(id: sender_address, format: SubjectIdFormatUri),
+    ])
+  let interact =
+    Interact(
+      start: ["redirect"],
+      finish: Some(Finish(
+        method: "redirect",
+        uri: "https://example.com/finish",
+        nonce: "nonce",
+      )),
+    )
+  let grant_options =
+    GrantOptions(
+      auth_server_url: sender_address_info.auth_server,
+      access: [],
+      interact: Some(interact),
+      address: sender_address,
+      client_type: None,
+      subject: Some(subject),
+    )
+
+  case grants.request(client, grant_options) {
+    Ok(grant) ->
+      case grants.is_interactive_grant(grant) {
+        True -> handle_pending_grant(client, grant, fn(_continuation) { Nil })
+        False -> panic as "Grant should require interaction!"
       }
     Error(err) -> print_error("Failed to request grant", err)
   }
@@ -346,6 +398,7 @@ fn request_quote_grant_section(
       interact: None,
       address: sender_address,
       client_type: None,
+      subject: None,
     )
 
   case grants.request(client, grant_options) {
@@ -493,21 +546,26 @@ fn request_outgoing_payment_grant_section(
       interact: Some(interact),
       address: sender_address,
       client_type: None,
+      subject: None,
     )
 
   case grants.request(client, grant_options) {
     Ok(grant) ->
       case grants.is_interactive_grant(grant) {
         True ->
-          handle_pending_grant(client, grant, fn(token) {
-            run_outgoing_payment_flow(
-              client,
-              sender_address_info,
-              sender_address,
-              token,
-              quote.id,
-              incoming_payment_id,
-            )
+          handle_pending_grant(client, grant, fn(continuation) {
+            case continuation.access_token {
+              Some(token) ->
+                run_outgoing_payment_flow(
+                  client,
+                  sender_address_info,
+                  sender_address,
+                  token,
+                  quote.id,
+                  incoming_payment_id,
+                )
+              None -> Nil
+            }
           })
         False -> panic as "Grant should require interaction!"
       }
@@ -518,7 +576,7 @@ fn request_outgoing_payment_grant_section(
 fn handle_pending_grant(
   client: client.Client,
   grant: GrantResponse,
-  on_token: fn(AccessTokenResponse) -> Nil,
+  on_continuation: fn(grants.ContinuationResponse) -> Nil,
 ) -> Nil {
   case grant {
     PendingGrant(interact: interact, continue: continue) -> {
@@ -530,10 +588,7 @@ fn handle_pending_grant(
       case grants.continue(client, continue, interact_ref) {
         Ok(continuation) -> {
           print_continuation(continuation)
-          case continuation.access_token {
-            Some(token) -> on_token(token)
-            None -> Nil
-          }
+          on_continuation(continuation)
         }
         Error(err) -> print_error("Failed to continue grant", err)
       }
@@ -853,6 +908,11 @@ fn print_continuation(continuation: grants.ContinuationResponse) -> Nil {
       field("Manage URL", token.manage)
     }
     None -> field("Status", "continuation succeeded, no access token issued")
+  }
+  case continuation.subject {
+    Some(subject) ->
+      list.each(subject.sub_ids, fn(sub_id) { field("Subject", sub_id.id) })
+    None -> Nil
   }
 }
 

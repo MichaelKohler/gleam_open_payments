@@ -5,7 +5,8 @@ import open_payments/error.{ApiError}
 import open_payments/grants.{
   type GrantResponse, AccessTokenBodyProperty, Body, ClientDirectedIdentity,
   ClientWalletAddressObject, ContinueAccessToken, ContinueResponse, Finish,
-  Grant, Interact, InteractResponse, PendingGrant,
+  Grant, Interact, InteractResponse, PendingGrant, Subject, SubjectId,
+  SubjectIdFormatUri,
 }
 import open_payments/types.{
   AccessIncoming, AccessQuote, AccessTokenResponse, IncomingCreate, Key,
@@ -98,13 +99,44 @@ pub fn encode_client_directed_identity_test() {
 pub fn encode_body_test() {
   let body =
     Body(
-      access_token: AccessTokenBodyProperty([AccessQuote([QuoteCreate])]),
+      access_token: Some(AccessTokenBodyProperty([AccessQuote([QuoteCreate])])),
       client: ClientWalletAddressObject("https://wallet.example/sender"),
       interact: None,
+      subject: None,
     )
 
   assert json.to_string(grants.encode_body(body))
     == "{\"access_token\":{\"access\":[{\"type\":\"quote\",\"actions\":[\"create\"]}]},\"client\":\"https://wallet.example/sender\"}"
+}
+
+pub fn encode_body_with_subject_test() {
+  let body =
+    Body(
+      access_token: None,
+      client: ClientWalletAddressObject("https://wallet.example/sender"),
+      interact: Some(Interact(start: ["redirect"], finish: None)),
+      subject: Some(
+        Subject(sub_ids: [
+          SubjectId(
+            id: "https://wallet.example/alice",
+            format: SubjectIdFormatUri,
+          ),
+        ]),
+      ),
+    )
+
+  assert json.to_string(grants.encode_body(body))
+    == "{\"subject\":{\"sub_ids\":[{\"id\":\"https://wallet.example/alice\",\"format\":\"uri\"}]},\"interact\":{\"start\":[\"redirect\"]},\"client\":\"https://wallet.example/sender\"}"
+}
+
+pub fn encode_subject_test() {
+  let subject =
+    Subject(sub_ids: [
+      SubjectId(id: "https://wallet.example/alice", format: SubjectIdFormatUri),
+    ])
+
+  assert json.to_string(grants.encode_subject(subject))
+    == "{\"sub_ids\":[{\"id\":\"https://wallet.example/alice\",\"format\":\"uri\"}]}"
 }
 
 pub fn decode_interact_response_test() {
@@ -237,6 +269,7 @@ pub fn decode_continuation_response_with_token_test() {
         access: [AccessQuote([QuoteCreate])],
       ),
     )
+  assert decoded.subject == None
 }
 
 pub fn decode_continuation_response_without_token_test() {
@@ -249,6 +282,48 @@ pub fn decode_continuation_response_without_token_test() {
     )
 
   assert decoded.access_token == None
+  assert decoded.subject == None
+}
+
+pub fn decode_continuation_response_with_subject_test() {
+  let json_value =
+    json.object([
+      #(
+        "subject",
+        json.object([
+          #(
+            "sub_ids",
+            json.array(
+              [#("https://ilp.interledger-test.dev/alice", "uri")],
+              fn(sub_id) {
+                json.object([
+                  #("id", json.string(sub_id.0)),
+                  #("format", json.string(sub_id.1)),
+                ])
+              },
+            ),
+          ),
+        ]),
+      ),
+      #("continue", continue_json()),
+    ])
+
+  let assert Ok(decoded) =
+    json.parse(
+      json.to_string(json_value),
+      grants.decode_continuation_response(),
+    )
+
+  assert decoded.access_token == None
+  assert decoded.subject
+    == Some(
+      Subject(sub_ids: [
+        SubjectId(
+          id: "https://ilp.interledger-test.dev/alice",
+          format: SubjectIdFormatUri,
+        ),
+      ]),
+    )
 }
 
 pub fn is_interactive_grant_pending_test() {
@@ -309,6 +384,7 @@ pub fn request_success_test() {
       interact: None,
       address: "https://wallet.example/sender",
       client_type: None,
+      subject: None,
     )
 
   let assert Ok(_) = grants.request(client, options)
@@ -333,6 +409,73 @@ pub fn request_success_test() {
     )
 }
 
+pub fn request_with_subject_success_test() {
+  let #(base_url, mock_subject) =
+    mock_server.start(
+      status: 200,
+      headers: [],
+      body: json.to_string(
+        json.object([
+          #(
+            "interact",
+            json.object([
+              #("redirect", json.string("https://auth.example/interact")),
+            ]),
+          ),
+          #("continue", continue_json()),
+        ]),
+      ),
+    )
+  let client = test_client.client()
+  let options =
+    grants.GrantOptions(
+      auth_server_url: base_url,
+      access: [],
+      interact: Some(Interact(start: ["redirect"], finish: None)),
+      address: "https://wallet.example/sender",
+      client_type: None,
+      subject: Some(
+        Subject(sub_ids: [
+          SubjectId(
+            id: "https://ilp.interledger-test.dev/michaelusd",
+            format: SubjectIdFormatUri,
+          ),
+        ]),
+      ),
+    )
+
+  let assert Ok(_) = grants.request(client, options)
+  let captured = mock_server.await_request(mock_subject)
+
+  assert captured.body
+    == json.to_string(
+      json.object([
+        #(
+          "subject",
+          json.object([
+            #(
+              "sub_ids",
+              json.array(
+                [
+                  SubjectId(
+                    id: "https://ilp.interledger-test.dev/michaelusd",
+                    format: SubjectIdFormatUri,
+                  ),
+                ],
+                grants.encode_subject_id,
+              ),
+            ),
+          ]),
+        ),
+        #(
+          "interact",
+          json.object([#("start", json.array(["redirect"], json.string))]),
+        ),
+        #("client", json.string("https://ilp.interledger-test.dev/michaelusd")),
+      ]),
+    )
+}
+
 pub fn request_error_status_test() {
   let #(base_url, _subject) =
     mock_server.start(status: 404, headers: [], body: "not found")
@@ -344,6 +487,7 @@ pub fn request_error_status_test() {
       interact: None,
       address: "https://wallet.example/sender",
       client_type: None,
+      subject: None,
     )
 
   assert grants.request(client, options)

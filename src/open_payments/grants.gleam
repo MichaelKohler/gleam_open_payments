@@ -31,12 +31,35 @@ pub type ClientType {
   ClientWalletAddressObject(wallet_address: String)
 }
 
+/// Currently the Open Payments spec only defines `"uri"`.
+pub type SubjectIdFormat {
+  SubjectIdFormatUri
+}
+
+/// A single identifier for the subject the client is requesting
+/// information about.
+pub type SubjectId {
+  SubjectId(id: String, format: SubjectIdFormat)
+}
+
+/// The subject a client is requesting information about (e.g. to confirm
+/// wallet address ownership), sent as part of a grant request and returned
+/// on the continuation response once interaction completes. Exactly one
+/// `sub_ids` entry may be sent, per the Open Payments spec.
+pub type Subject {
+  Subject(sub_ids: List(SubjectId))
+}
+
 /// The options for a grant request. `access` may list more than one access
 /// kind (e.g. incoming-payment and quote) to request them all in a single
-/// grant. `client_type` defaults to identifying the client by its own
-/// wallet address (`ClientWalletAddressObject`) when left as `None`; pass
+/// grant, or be left as `[]` for a subject-only request. `client_type`
+/// defaults to identifying the client by its own wallet address
+/// (`ClientWalletAddressObject`) when left as `None`; pass
 /// `Some(ClientDirectedIdentity(key))` to identify the client by its public
-/// key instead.
+/// key instead. `subject` requests information about a subject (e.g. to
+/// confirm wallet address ownership) rather than, or alongside, an access
+/// token; the auth server requires `interact` to be set whenever `subject`
+/// is used.
 /// See https://openpayments.dev/apis/auth-server/operations/post-request/
 pub type GrantOptions {
   GrantOptions(
@@ -45,6 +68,7 @@ pub type GrantOptions {
     interact: Option(Interact),
     address: String,
     client_type: Option(ClientType),
+    subject: Option(Subject),
   )
 }
 
@@ -56,9 +80,10 @@ pub type AccessTokenBodyProperty {
 /// The request body sent to the auth server to request a grant.
 pub type Body {
   Body(
-    access_token: AccessTokenBodyProperty,
+    access_token: Option(AccessTokenBodyProperty),
     client: ClientType,
     interact: Option(Interact),
+    subject: Option(Subject),
   )
 }
 
@@ -113,6 +138,26 @@ pub fn encode_access_token(access_token: AccessTokenBodyProperty) -> Json {
 }
 
 @internal
+pub fn encode_subject_id_format(format: SubjectIdFormat) -> Json {
+  json.string(case format {
+    SubjectIdFormatUri -> "uri"
+  })
+}
+
+@internal
+pub fn encode_subject_id(subject_id: SubjectId) -> Json {
+  json.object([
+    #("id", json.string(subject_id.id)),
+    #("format", encode_subject_id_format(subject_id.format)),
+  ])
+}
+
+@internal
+pub fn encode_subject(subject: Subject) -> Json {
+  json.object([#("sub_ids", json.array(subject.sub_ids, encode_subject_id))])
+}
+
+@internal
 pub fn encode_key(key: Key) -> Json {
   json.object([
     #("kid", json.string(key.kid)),
@@ -134,11 +179,10 @@ pub fn encode_client(client: ClientType) -> Json {
 
 @internal
 pub fn encode_body(body: Body) -> Json {
-  [
-    #("access_token", encode_access_token(body.access_token)),
-    #("client", encode_client(body.client)),
-  ]
+  [#("client", encode_client(body.client))]
+  |> optional_field("access_token", body.access_token, encode_access_token)
   |> optional_field("interact", body.interact, encode_interact)
+  |> optional_field("subject", body.subject, encode_subject)
   |> json.object
 }
 
@@ -202,7 +246,8 @@ pub fn decode_grant_response() -> decode.Decoder(GrantResponse) {
 
 /// Requests a grant from the auth server for the given access. Pass more
 /// than one `Access` in `options.access` to request them all under a single
-/// grant, rather than requesting each with its own grant.
+/// grant, rather than requesting each with its own grant. Leave `access` as
+/// `[]` for a subject-only request (see `options.subject`).
 /// See https://openpayments.dev/apis/auth-server/operations/post-request/
 pub fn request(
   client: Client,
@@ -213,11 +258,16 @@ pub fn request(
     Some(client_type) -> client_type
     None -> ClientWalletAddressObject(client.wallet_address_url)
   }
+  let access_token = case options.access {
+    [] -> None
+    access -> Some(AccessTokenBodyProperty(access))
+  }
   let body =
     Body(
-      access_token: AccessTokenBodyProperty(options.access),
+      access_token: access_token,
       client: client_type,
       interact: options.interact,
+      subject: options.subject,
     )
     |> encode_body
 
@@ -242,10 +292,12 @@ pub fn is_interactive_grant(grant: GrantResponse) -> Bool {
 }
 
 /// The result of continuing a pending grant. `access_token` is present once
-/// the grant has been approved.
+/// the grant has been approved; `subject` is present once the requested
+/// subject information has been provided.
 pub type ContinuationResponse {
   ContinuationResponse(
     access_token: Option(AccessTokenResponse),
+    subject: Option(Subject),
     continue: ContinueResponse,
   )
 }
@@ -256,15 +308,43 @@ pub fn encode_continue_body(interact_ref: String) -> Json {
 }
 
 @internal
+pub fn decode_subject_id_format() -> decode.Decoder(SubjectIdFormat) {
+  use format <- decode.then(decode.string)
+  case format {
+    "uri" -> decode.success(SubjectIdFormatUri)
+    _ -> decode.failure(SubjectIdFormatUri, "SubjectIdFormat")
+  }
+}
+
+@internal
+pub fn decode_subject_id() -> decode.Decoder(SubjectId) {
+  use id <- decode.field("id", decode.string)
+  use format <- decode.field("format", decode_subject_id_format())
+  decode.success(SubjectId(id: id, format: format))
+}
+
+@internal
+pub fn decode_subject() -> decode.Decoder(Subject) {
+  use sub_ids <- decode.field("sub_ids", decode.list(decode_subject_id()))
+  decode.success(Subject(sub_ids: sub_ids))
+}
+
+@internal
 pub fn decode_continuation_response() -> decode.Decoder(ContinuationResponse) {
   use access_token <- decode.optional_field(
     "access_token",
     None,
     decode_access_token_response() |> decode.map(Some),
   )
+  use subject <- decode.optional_field(
+    "subject",
+    None,
+    decode_subject() |> decode.map(Some),
+  )
   use continue <- decode.field("continue", decode_continue_response())
   decode.success(ContinuationResponse(
     access_token: access_token,
+    subject: subject,
     continue: continue,
   ))
 }

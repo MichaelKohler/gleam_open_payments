@@ -41,6 +41,7 @@ pub fn main() -> Nil {
       None,
       receiver_address,
       None,
+      None,
     )
   let assert Ok(Grant(access_token: incoming_token, continue: _)) =
     grants.request(client, incoming_grant_options)
@@ -91,7 +92,3 @@ wallet you control:
   registered there — the ones currently in the file are specific to the
   original author's test wallet and will fail signature verification for
   anyone else.
-
-## Missing scope
-
-- Grant request with subject
