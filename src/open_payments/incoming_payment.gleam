@@ -4,13 +4,14 @@ import gleam/http
 import gleam/int
 import gleam/json.{type Json}
 import gleam/option.{type Option, None, Some}
+import gleam/result
 import gleam/uri
 import open_payments/client.{type Client}
 import open_payments/error.{type OpenPaymentsError}
 import open_payments/request
 import open_payments/types.{
   type Amount, type PageInfo, add_query, decode_amount, decode_page_info,
-  encode_amount, optional_field,
+  encode_amount, optional_field, validate_pagination,
 }
 
 /// The ILP details a sender uses to pay into an incoming payment.
@@ -58,6 +59,8 @@ pub type CreateOptions {
 }
 
 /// The options for listing incoming payments.
+/// `first` or `last` sets the page size (1 to 100); only one may be given,
+/// and `last` pages backwards from `cursor`, so it requires one.
 pub type ListOptions {
   ListOptions(
     resource_server: String,
@@ -176,6 +179,11 @@ pub fn list(
   access_token: String,
   options: ListOptions,
 ) -> Result(IncomingPaymentList, OpenPaymentsError) {
+  use Nil <- result.try(validate_pagination(
+    cursor: options.cursor,
+    first: options.first,
+    last: options.last,
+  ))
   let query =
     [#("wallet-address", options.wallet_address)]
     |> add_query("cursor", options.cursor, fn(v) { v })

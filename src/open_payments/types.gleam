@@ -1,6 +1,13 @@
 import gleam/dynamic/decode
+import gleam/int
 import gleam/json.{type Json}
 import gleam/option.{type Option, None, Some}
+import open_payments/error.{type OpenPaymentsError, ValidationError}
+
+/// The page size bounds for `first` and `last`, per the Open Payments spec.
+const min_page_size = 1
+
+const max_page_size = 100
 
 /// A public key in JWK format, as published on a wallet address's JWKS
 /// endpoint or sent as part of a client-directed-identity grant request.
@@ -146,6 +153,34 @@ pub fn add_query(
   case value {
     Some(v) -> [#(name, encode(v)), ..query]
     None -> query
+  }
+}
+
+/// Rejects pagination parameters the Open Payments spec forbids: `first`
+/// and `last` together, `last` without a `cursor`, or a page size outside
+/// 1 to 100.
+@internal
+pub fn validate_pagination(
+  cursor cursor: Option(String),
+  first first: Option(Int),
+  last last: Option(Int),
+) -> Result(Nil, OpenPaymentsError) {
+  case cursor, first, last {
+    _, Some(_), Some(_) ->
+      Error(ValidationError("Pagination cannot use both first and last"))
+    None, _, Some(_) ->
+      Error(ValidationError("Pagination with last requires a cursor"))
+    _, Some(size), _
+    | _, _, Some(size)
+      if size < min_page_size || size > max_page_size
+    ->
+      Error(ValidationError(
+        "Pagination page size must be between "
+        <> int.to_string(min_page_size)
+        <> " and "
+        <> int.to_string(max_page_size),
+      ))
+    _, _, _ -> Ok(Nil)
   }
 }
 

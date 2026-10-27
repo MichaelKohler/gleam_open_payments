@@ -2,7 +2,7 @@ import gleam/json
 import gleam/list
 import gleam/option.{None, Some}
 import gleam/string
-import open_payments/error.{ApiError}
+import open_payments/error.{ApiError, ValidationError}
 import open_payments/incoming_payment.{
   CreateOptions, IlpPaymentMethod, IncomingPayment, ListOptions,
   PublicIncomingPayment,
@@ -247,6 +247,21 @@ pub fn list_success_test() {
     "wallet-address=https%3A%2F%2Fwallet.example%2Freceiver",
   )
   assert string.contains(captured.path, "first=5")
+}
+
+pub fn list_invalid_pagination_test() {
+  let options =
+    ListOptions(
+      // Unreachable: the request must be rejected before anything is sent.
+      resource_server: "http://127.0.0.1:1/unreachable",
+      wallet_address: "https://wallet.example/receiver",
+      cursor: None,
+      first: None,
+      last: Some(5),
+    )
+
+  assert incoming_payment.list(test_client.client(), "access-token", options)
+    == Error(ValidationError("Pagination with last requires a cursor"))
 }
 
 pub fn list_error_status_test() {
