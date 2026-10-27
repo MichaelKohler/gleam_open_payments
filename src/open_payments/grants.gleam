@@ -62,7 +62,8 @@ pub type Subject {
 /// (`ClientWalletAddressObject`, sent as `{"walletAddress": ...}`) when
 /// left as `None`; pass
 /// `Some(ClientDirectedIdentity(key))` to identify the client by its public
-/// key instead. `subject` requests information about a subject (e.g. to
+/// key instead, which is only allowed without `interact`: `request` returns
+/// a `ValidationError` otherwise. `subject` requests information about a subject (e.g. to
 /// confirm wallet address ownership) rather than, or alongside, an access
 /// token. It is sent as the single `sub_ids` entry the spec allows, and
 /// requires `interact` to be set: `request` returns a `ValidationError`
@@ -262,7 +263,7 @@ pub fn request(
   client: Client,
   options: GrantOptions,
 ) -> Result(GrantResponse, OpenPaymentsError) {
-  use <- require_interact_for_subject(options)
+  use Nil <- result.try(validate_options(options))
   let url = options.auth_server_url
   let client_type = case options.client_type {
     Some(client_type) -> client_type
@@ -292,14 +293,17 @@ pub fn request(
   )
 }
 
-fn require_interact_for_subject(
-  options: GrantOptions,
-  next: fn() -> Result(GrantResponse, OpenPaymentsError),
-) -> Result(GrantResponse, OpenPaymentsError) {
-  case options.subject, options.interact {
-    Some(_), None ->
+/// Rejects option combinations the Open Payments spec forbids, before
+/// anything is sent.
+fn validate_options(options: GrantOptions) -> Result(Nil, OpenPaymentsError) {
+  case options.client_type, options.interact, options.subject {
+    Some(ClientDirectedIdentity(_)), Some(_), _ ->
+      Error(ValidationError(
+        "A directed identity (jwk) client can only be used for non-interactive grants",
+      ))
+    _, None, Some(_) ->
       Error(ValidationError("A grant request with a subject requires interact"))
-    _, _ -> next()
+    _, _, _ -> Ok(Nil)
   }
 }
 

@@ -1,6 +1,7 @@
 import gleam/json
 import gleam/list
 import gleam/option.{None, Some}
+import gleam/string
 import open_payments/error.{ApiError, ValidationError}
 import open_payments/grants.{
   type GrantResponse, AccessTokenBodyProperty, Body, ClientDirectedIdentity,
@@ -416,6 +417,75 @@ pub fn request_success_test() {
         ),
       ]),
     )
+}
+
+pub fn request_directed_identity_with_interact_test() {
+  let client = test_client.client()
+  let key =
+    Key(
+      kid: "key-1",
+      x: "value",
+      alg: "EdDSA",
+      kty: "OKP",
+      crv: "Ed25519",
+      use_: "sig",
+    )
+  let options =
+    grants.GrantOptions(
+      // Unreachable: the request must be rejected before anything is sent.
+      auth_server_url: "http://127.0.0.1:1/unreachable",
+      access: [AccessQuote([QuoteCreate])],
+      interact: Some(Interact(start: ["redirect"], finish: None)),
+      address: "https://wallet.example/sender",
+      client_type: Some(ClientDirectedIdentity(key)),
+      subject: None,
+    )
+
+  assert grants.request(client, options)
+    == Error(ValidationError(
+      "A directed identity (jwk) client can only be used for non-interactive grants",
+    ))
+}
+
+pub fn request_directed_identity_without_interact_test() {
+  let #(base_url, mock_subject) =
+    mock_server.start(
+      status: 200,
+      headers: [],
+      body: json.to_string(
+        json.object([
+          #("access_token", access_token_json()),
+          #("continue", continue_json()),
+        ]),
+      ),
+    )
+  let client = test_client.client()
+  let key =
+    Key(
+      kid: "key-1",
+      x: "value",
+      alg: "EdDSA",
+      kty: "OKP",
+      crv: "Ed25519",
+      use_: "sig",
+    )
+  let options =
+    grants.GrantOptions(
+      auth_server_url: base_url,
+      access: [AccessQuote([QuoteCreate])],
+      interact: None,
+      address: "https://wallet.example/sender",
+      client_type: Some(ClientDirectedIdentity(key)),
+      subject: None,
+    )
+
+  let assert Ok(_) = grants.request(client, options)
+  let captured = mock_server.await_request(mock_subject)
+
+  assert string.contains(
+    captured.body,
+    "\"client\":{\"jwk\":" <> json.to_string(grants.encode_key(key)) <> "}",
+  )
 }
 
 pub fn request_with_subject_without_interact_test() {
