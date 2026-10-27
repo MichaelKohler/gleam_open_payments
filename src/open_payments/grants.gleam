@@ -1,15 +1,22 @@
 import gleam/dynamic/decode
 import gleam/http
+import gleam/int
 import gleam/json.{type Json}
+import gleam/list
 import gleam/option.{type Option, None, Some}
 import gleam/result
 import open_payments/client.{type Client}
 import open_payments/error.{type OpenPaymentsError, ValidationError}
 import open_payments/request
 import open_payments/types.{
-  type Access, type AccessTokenResponse, type Key, decode_access_token_response,
-  encode_access, optional_field,
+  type Access, type AccessTokenResponse, type Key, AccessIncoming,
+  AccessOutgoing, AccessQuote, decode_access_token_response, encode_access,
+  optional_field,
 }
+
+/// The most access items a single grant request may list, per the Open
+/// Payments spec.
+const max_access_items = 3
 
 /// How the client is notified once the user has completed interaction with
 /// the auth server, as requested in a grant's `interact` options.
@@ -55,9 +62,10 @@ pub type Subject {
   Subject(sub_ids: List(SubjectId))
 }
 
-/// The options for a grant request. `access` may list more than one access
-/// kind (e.g. incoming-payment and quote) to request them all in a single
-/// grant, or be left as `[]` for a subject-only request. `client_type`
+/// The options for a grant request. `access` may list up to three unique
+/// access items (e.g. incoming-payment and quote) to request them all in a
+/// single grant, each with unique actions, or be left as `[]` for a
+/// subject-only request. `client_type`
 /// defaults to identifying the client by its own wallet address
 /// (`ClientWalletAddressObject`, sent as `{"walletAddress": ...}`) when
 /// left as `None`; pass
@@ -296,15 +304,54 @@ pub fn request(
 /// Rejects option combinations the Open Payments spec forbids, before
 /// anything is sent.
 fn validate_options(options: GrantOptions) -> Result(Nil, OpenPaymentsError) {
-  case options.client_type, options.interact, options.subject {
-    Some(ClientDirectedIdentity(_)), Some(_), _ ->
+  use Nil <- result.try(
+    case options.client_type, options.interact, options.subject {
+      Some(ClientDirectedIdentity(_)), Some(_), _ ->
+        Error(ValidationError(
+          "A directed identity (jwk) client can only be used for non-interactive grants",
+        ))
+      _, None, Some(_) ->
+        Error(ValidationError(
+          "A grant request with a subject requires interact",
+        ))
+      _, _, _ -> Ok(Nil)
+    },
+  )
+
+  validate_access(options.access)
+}
+
+fn validate_access(access: List(Access)) -> Result(Nil, OpenPaymentsError) {
+  use Nil <- result.try(case list.length(access) > max_access_items {
+    True ->
       Error(ValidationError(
-        "A directed identity (jwk) client can only be used for non-interactive grants",
+        "A grant request may list at most "
+        <> int.to_string(max_access_items)
+        <> " access items",
       ))
-    _, None, Some(_) ->
-      Error(ValidationError("A grant request with a subject requires interact"))
-    _, _, _ -> Ok(Nil)
+    False -> Ok(Nil)
+  })
+  use Nil <- result.try(case has_duplicates(access) {
+    True ->
+      Error(ValidationError("A grant request's access items must be unique"))
+    False -> Ok(Nil)
+  })
+  case list.any(access, access_has_duplicate_actions) {
+    True -> Error(ValidationError("An access item's actions must be unique"))
+    False -> Ok(Nil)
   }
+}
+
+fn access_has_duplicate_actions(access: Access) -> Bool {
+  case access {
+    AccessIncoming(actions:, ..) -> has_duplicates(actions)
+    AccessOutgoing(actions:, ..) -> has_duplicates(actions)
+    AccessQuote(actions:) -> has_duplicates(actions)
+  }
+}
+
+fn has_duplicates(items: List(a)) -> Bool {
+  list.length(list.unique(items)) != list.length(items)
 }
 
 /// Returns `True` if the grant requires the user to complete an interaction

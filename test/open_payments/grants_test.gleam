@@ -2,7 +2,7 @@ import gleam/json
 import gleam/list
 import gleam/option.{None, Some}
 import gleam/string
-import open_payments/error.{ApiError, ValidationError}
+import open_payments/error.{ApiError, TransportError, ValidationError}
 import open_payments/grants.{
   type GrantResponse, AccessTokenBodyProperty, Body, ClientDirectedIdentity,
   ClientWalletAddressObject, ClientWalletAddressString, ContinueAccessToken,
@@ -10,8 +10,8 @@ import open_payments/grants.{
   Subject, SubjectId, SubjectIdFormatUri,
 }
 import open_payments/types.{
-  AccessIncoming, AccessQuote, AccessTokenResponse, IncomingCreate, Key,
-  QuoteCreate,
+  type Access, AccessIncoming, AccessOutgoing, AccessQuote, AccessTokenResponse,
+  IncomingCreate, IncomingRead, Key, OutgoingCreate, QuoteCreate, QuoteRead,
 }
 import support/mock_server
 import support/test_client
@@ -486,6 +486,74 @@ pub fn request_directed_identity_without_interact_test() {
     captured.body,
     "\"client\":{\"jwk\":" <> json.to_string(grants.encode_key(key)) <> "}",
   )
+}
+
+/// Requests a grant for `access` against an unreachable server, so that only
+/// a request rejected before sending can return anything but a
+/// `TransportError`.
+fn request_unsent(access: List(Access)) {
+  grants.request(
+    test_client.client(),
+    grants.GrantOptions(
+      auth_server_url: "http://127.0.0.1:1/unreachable",
+      access: access,
+      interact: None,
+      address: "https://wallet.example/sender",
+      client_type: None,
+      subject: None,
+    ),
+  )
+}
+
+pub fn request_too_many_access_items_test() {
+  assert request_unsent([
+      AccessIncoming([IncomingCreate], None),
+      AccessIncoming([IncomingRead], None),
+      AccessQuote([QuoteCreate]),
+      AccessQuote([QuoteRead]),
+    ])
+    == Error(ValidationError("A grant request may list at most 3 access items"))
+}
+
+pub fn request_duplicate_access_items_test() {
+  assert request_unsent([
+      AccessQuote([QuoteCreate]),
+      AccessIncoming([IncomingCreate], None),
+      AccessQuote([QuoteCreate]),
+    ])
+    == Error(ValidationError("A grant request's access items must be unique"))
+}
+
+pub fn request_duplicate_incoming_actions_test() {
+  assert request_unsent([
+      AccessIncoming([IncomingCreate, IncomingRead, IncomingCreate], None),
+    ])
+    == Error(ValidationError("An access item's actions must be unique"))
+}
+
+pub fn request_duplicate_outgoing_actions_test() {
+  assert request_unsent([
+      AccessOutgoing(
+        [OutgoingCreate, OutgoingCreate],
+        "https://wallet.example/sender",
+        None,
+      ),
+    ])
+    == Error(ValidationError("An access item's actions must be unique"))
+}
+
+pub fn request_duplicate_quote_actions_test() {
+  assert request_unsent([AccessQuote([QuoteRead, QuoteRead])])
+    == Error(ValidationError("An access item's actions must be unique"))
+}
+
+pub fn request_three_unique_access_items_is_sent_test() {
+  let assert Error(TransportError(_)) =
+    request_unsent([
+      AccessIncoming([IncomingCreate, IncomingRead], None),
+      AccessQuote([QuoteCreate, QuoteRead]),
+      AccessOutgoing([OutgoingCreate], "https://wallet.example/sender", None),
+    ])
 }
 
 pub fn request_with_subject_without_interact_test() {
