@@ -6,7 +6,7 @@
 [Open Payments](https://openpayments.dev/) SDK for Gleam.
 
 ```sh
-gleam add open_payments@1
+gleam add open_payments@2
 ```
 
 ```gleam
