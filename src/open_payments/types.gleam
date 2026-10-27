@@ -189,6 +189,8 @@ pub fn validate_pagination(
 }
 
 /// The actions that can be granted or exercised on incoming payments.
+/// Actions not defined by the Open Payments spec are kept as
+/// `IncomingOther`.
 pub type IncomingAction {
   IncomingCreate
   IncomingComplete
@@ -196,22 +198,28 @@ pub type IncomingAction {
   IncomingReadAll
   IncomingList
   IncomingListAll
+  IncomingOther(String)
 }
 
 /// The actions that can be granted or exercised on outgoing payments.
+/// Actions not defined by the Open Payments spec are kept as
+/// `OutgoingOther`.
 pub type OutgoingAction {
   OutgoingCreate
   OutgoingRead
   OutgoingReadAll
   OutgoingList
   OutgoingListAll
+  OutgoingOther(String)
 }
 
 /// The actions that can be granted or exercised on quotes.
+/// Actions not defined by the Open Payments spec are kept as `QuoteOther`.
 pub type QuoteAction {
   QuoteCreate
   QuoteRead
   QuoteReadAll
+  QuoteOther(String)
 }
 
 /// Limits placed on an outgoing payment grant, restricting the receiver,
@@ -226,6 +234,8 @@ pub type Limits {
 
 /// The access rights granted to (or requested for) an access token.
 /// Shared by grant requests and access token responses.
+/// Access types not defined by the Open Payments spec are kept as
+/// `AccessOther`, with their `type` as `kind` and their raw actions.
 pub type Access {
   AccessIncoming(actions: List(IncomingAction), identifier: Option(String))
   AccessOutgoing(
@@ -234,6 +244,7 @@ pub type Access {
     limits: Option(Limits),
   )
   AccessQuote(actions: List(QuoteAction))
+  AccessOther(kind: String, actions: List(String))
 }
 
 /// See https://openpayments.dev/apis/auth-server/operations/post-token/
@@ -266,6 +277,7 @@ pub fn encode_incoming_action(action: IncomingAction) -> Json {
     IncomingReadAll -> "read-all"
     IncomingList -> "list"
     IncomingListAll -> "list-all"
+    IncomingOther(action) -> action
   })
 }
 
@@ -278,6 +290,7 @@ pub fn encode_outgoing_action(action: OutgoingAction) -> Json {
     OutgoingReadAll -> "read-all"
     OutgoingList -> "list"
     OutgoingListAll -> "list-all"
+    OutgoingOther(action) -> action
   })
 }
 
@@ -288,6 +301,7 @@ pub fn encode_quote_action(action: QuoteAction) -> Json {
     QuoteCreate -> "create"
     QuoteRead -> "read"
     QuoteReadAll -> "read-all"
+    QuoteOther(action) -> action
   })
 }
 
@@ -315,6 +329,11 @@ pub fn encode_access(access: Access) -> Json {
         #("type", json.string("quote")),
         #("actions", json.array(actions, encode_quote_action)),
       ])
+    AccessOther(kind, actions) ->
+      json.object([
+        #("type", json.string(kind)),
+        #("actions", json.array(actions, json.string)),
+      ])
   }
 }
 
@@ -329,7 +348,7 @@ pub fn decode_incoming_action() -> decode.Decoder(IncomingAction) {
     "read-all" -> decode.success(IncomingReadAll)
     "list" -> decode.success(IncomingList)
     "list-all" -> decode.success(IncomingListAll)
-    _ -> decode.failure(IncomingCreate, "IncomingAction")
+    other -> decode.success(IncomingOther(other))
   }
 }
 
@@ -343,7 +362,7 @@ pub fn decode_outgoing_action() -> decode.Decoder(OutgoingAction) {
     "read-all" -> decode.success(OutgoingReadAll)
     "list" -> decode.success(OutgoingList)
     "list-all" -> decode.success(OutgoingListAll)
-    _ -> decode.failure(OutgoingCreate, "OutgoingAction")
+    other -> decode.success(OutgoingOther(other))
   }
 }
 
@@ -355,7 +374,7 @@ pub fn decode_quote_action() -> decode.Decoder(QuoteAction) {
     "create" -> decode.success(QuoteCreate)
     "read" -> decode.success(QuoteRead)
     "read-all" -> decode.success(QuoteReadAll)
-    _ -> decode.failure(QuoteCreate, "QuoteAction")
+    other -> decode.success(QuoteOther(other))
   }
 }
 
@@ -410,7 +429,14 @@ pub fn decode_access() -> decode.Decoder(Access) {
       use actions <- decode.field("actions", decode.list(decode_quote_action()))
       decode.success(AccessQuote(actions))
     }
-    _ -> decode.failure(AccessQuote([]), "Access")
+    other -> {
+      use actions <- decode.optional_field(
+        "actions",
+        [],
+        decode.list(decode.string),
+      )
+      decode.success(AccessOther(other, actions))
+    }
   }
 }
 

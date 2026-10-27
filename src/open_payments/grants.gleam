@@ -9,7 +9,7 @@ import open_payments/client.{type Client}
 import open_payments/error.{type OpenPaymentsError, ValidationError}
 import open_payments/request
 import open_payments/types.{
-  type Access, type AccessTokenResponse, type Key, AccessIncoming,
+  type Access, type AccessTokenResponse, type Key, AccessIncoming, AccessOther,
   AccessOutgoing, AccessQuote, decode_access_token_response, encode_access,
   optional_field,
 }
@@ -382,6 +382,7 @@ fn access_has_duplicate_actions(access: Access) -> Bool {
     AccessIncoming(actions:, ..) -> has_duplicates(actions)
     AccessOutgoing(actions:, ..) -> has_duplicates(actions)
     AccessQuote(actions:) -> has_duplicates(actions)
+    AccessOther(actions:, ..) -> has_duplicates(actions)
   }
 }
 

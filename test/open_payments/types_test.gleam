@@ -2,11 +2,11 @@ import gleam/json
 import gleam/option.{None, Some}
 import open_payments/error.{ValidationError}
 import open_payments/types.{
-  AccessIncoming, AccessOutgoing, AccessQuote, Amount, DebitAmount,
-  IncomingComplete, IncomingCreate, IncomingList, IncomingListAll, IncomingRead,
-  IncomingReadAll, Limits, NoAmount, OutgoingCreate, OutgoingList,
-  OutgoingListAll, OutgoingRead, OutgoingReadAll, PageInfo, QuoteCreate,
-  QuoteRead, QuoteReadAll, ReceiveAmount,
+  AccessIncoming, AccessOther, AccessOutgoing, AccessQuote, Amount, DebitAmount,
+  IncomingComplete, IncomingCreate, IncomingList, IncomingListAll, IncomingOther,
+  IncomingRead, IncomingReadAll, Limits, NoAmount, OutgoingCreate, OutgoingList,
+  OutgoingListAll, OutgoingOther, OutgoingRead, OutgoingReadAll, PageInfo,
+  QuoteCreate, QuoteOther, QuoteRead, QuoteReadAll, ReceiveAmount,
 }
 
 pub fn encode_amount_test() {
@@ -111,6 +111,8 @@ pub fn incoming_action_round_trip_test() {
     == Ok(IncomingList)
   assert json.parse(json.to_string(encode(IncomingListAll)), decoder)
     == Ok(IncomingListAll)
+  assert json.parse(json.to_string(encode(IncomingOther("refund"))), decoder)
+    == Ok(IncomingOther("refund"))
 }
 
 pub fn outgoing_action_round_trip_test() {
@@ -127,6 +129,8 @@ pub fn outgoing_action_round_trip_test() {
     == Ok(OutgoingList)
   assert json.parse(json.to_string(encode(OutgoingListAll)), decoder)
     == Ok(OutgoingListAll)
+  assert json.parse(json.to_string(encode(OutgoingOther("refund"))), decoder)
+    == Ok(OutgoingOther("refund"))
 }
 
 pub fn quote_action_round_trip_test() {
@@ -138,6 +142,8 @@ pub fn quote_action_round_trip_test() {
   assert json.parse(json.to_string(encode(QuoteRead)), decoder) == Ok(QuoteRead)
   assert json.parse(json.to_string(encode(QuoteReadAll)), decoder)
     == Ok(QuoteReadAll)
+  assert json.parse(json.to_string(encode(QuoteOther("refund"))), decoder)
+    == Ok(QuoteOther("refund"))
 }
 
 pub fn encode_decode_limits_test() {
@@ -202,6 +208,29 @@ pub fn encode_decode_access_quote_test() {
       types.decode_access(),
     )
     == Ok(access)
+}
+
+pub fn encode_decode_access_other_test() {
+  let access = AccessOther(kind: "subscription", actions: ["create", "read"])
+
+  assert json.parse(
+      json.to_string(types.encode_access(access)),
+      types.decode_access(),
+    )
+    == Ok(access)
+}
+
+pub fn decode_access_other_without_actions_test() {
+  assert json.parse("{\"type\":\"subscription\"}", types.decode_access())
+    == Ok(AccessOther(kind: "subscription", actions: []))
+}
+
+pub fn decode_access_known_type_with_unknown_action_test() {
+  assert json.parse(
+      "{\"type\":\"quote\",\"actions\":[\"create\",\"refund\"]}",
+      types.decode_access(),
+    )
+    == Ok(AccessQuote([QuoteCreate, QuoteOther("refund")]))
 }
 
 pub fn decode_access_token_response_test() {
