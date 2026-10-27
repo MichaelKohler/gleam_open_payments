@@ -532,11 +532,37 @@ pub fn continue_success_test() {
       wait: None,
     )
 
-  let assert Ok(_) = grants.continue(client, response, "interact-ref-value")
+  let assert Ok(_) =
+    grants.continue(client, response, Some("interact-ref-value"))
   let captured = mock_server.await_request(subject)
 
   assert captured.method == "POST"
   assert captured.body == "{\"interact_ref\":\"interact-ref-value\"}"
+  assert list.key_find(captured.headers, "authorization")
+    == Ok("GNAP continue-access-token")
+}
+
+pub fn continue_without_interact_ref_test() {
+  let #(base_url, subject) =
+    mock_server.start(
+      status: 200,
+      headers: [],
+      body: json.to_string(json.object([#("continue", continue_json())])),
+    )
+  let client = test_client.client()
+  let response =
+    ContinueResponse(
+      access_token: ContinueAccessToken("continue-access-token"),
+      uri: base_url,
+      wait: None,
+    )
+
+  let assert Ok(_) = grants.continue(client, response, None)
+  let captured = mock_server.await_request(subject)
+
+  assert captured.method == "POST"
+  assert captured.body == ""
+  assert list.key_find(captured.headers, "content-digest") == Error(Nil)
   assert list.key_find(captured.headers, "authorization")
     == Ok("GNAP continue-access-token")
 }
@@ -552,7 +578,7 @@ pub fn continue_error_status_test() {
       wait: None,
     )
 
-  assert grants.continue(client, response, "interact-ref-value")
+  assert grants.continue(client, response, Some("interact-ref-value"))
     == Error(ApiError(status: 404, body: "not found"))
 }
 

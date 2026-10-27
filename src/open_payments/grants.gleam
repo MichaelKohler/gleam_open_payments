@@ -358,20 +358,22 @@ pub fn decode_continuation_response() -> decode.Decoder(ContinuationResponse) {
   ))
 }
 
-/// Continues a pending grant after the user has completed interaction.
+/// Continues a pending grant. Pass the `interact_ref` received once the user
+/// has completed interaction, or `None` to poll the grant (e.g. after the
+/// `wait` period), in which case the request is sent without a body.
 /// See https://openpayments.dev/apis/auth-server/operations/post-continue/
 pub fn continue(
   client: Client,
   response: ContinueResponse,
-  interact_ref: String,
+  interact_ref: Option(String),
 ) -> Result(ContinuationResponse, OpenPaymentsError) {
-  let body = encode_continue_body(interact_ref)
+  let body = option.map(interact_ref, encode_continue_body)
 
   request.send_and_decode(
     client,
     response.uri,
     http.Post,
-    Some(body),
+    body,
     token: Some(response.access_token.value),
     decoder: decode_continuation_response(),
     error_context: "Failed to parse continuation response",

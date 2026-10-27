@@ -585,7 +585,7 @@ fn handle_pending_grant(
       io.println("")
       let interact_ref = prompt("Paste the interact_ref once approved: ")
 
-      case grants.continue(client, continue, interact_ref) {
+      case grants.continue(client, continue, Some(interact_ref)) {
         Ok(continuation) -> {
           print_continuation(continuation)
           on_continuation(continuation)
