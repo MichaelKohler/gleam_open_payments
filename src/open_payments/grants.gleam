@@ -101,11 +101,13 @@ pub type GrantOptions {
 }
 
 /// Wraps the `access` requested for the token issued by a grant.
+@internal
 pub type AccessTokenBodyProperty {
   AccessTokenBodyProperty(access: List(Access))
 }
 
 /// The request body sent to the auth server to request a grant.
+@internal
 pub type Body {
   Body(
     access_token: Option(AccessTokenBodyProperty),

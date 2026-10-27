@@ -36,6 +36,7 @@ pub type AmountOption {
 /// Prepends `#(name, encode(v))` to `fields` when `value` is `Some(v)`,
 /// otherwise leaves `fields` unchanged. Used to build JSON objects with
 /// optional fields.
+@internal
 pub fn optional_field(
   fields: List(#(String, Json)),
   name: String,
@@ -50,6 +51,7 @@ pub fn optional_field(
 
 /// Encodes an `Amount` as its Open Payments JSON representation
 /// (`value`/`assetCode`/`assetScale`).
+@internal
 pub fn encode_amount(amount: Amount) -> Json {
   json.object([
     #("value", json.string(amount.value)),
@@ -59,6 +61,7 @@ pub fn encode_amount(amount: Amount) -> Json {
 }
 
 /// Decodes an `Amount` from its Open Payments JSON representation.
+@internal
 pub fn decode_amount() -> decode.Decoder(Amount) {
   use value <- decode.field("value", decode.string)
   use asset_code <- decode.field("assetCode", decode.string)
@@ -72,6 +75,7 @@ pub fn decode_amount() -> decode.Decoder(Amount) {
 
 /// Prepends the encoded `debitAmount` or `receiveAmount` field to `fields`
 /// when `amount` carries one, otherwise leaves `fields` unchanged.
+@internal
 pub fn add_amount_option(
   fields: List(#(String, Json)),
   amount: AmountOption,
@@ -88,6 +92,7 @@ pub fn add_amount_option(
 
 /// Decodes an `AmountOption` from a JSON object that may carry a
 /// `debitAmount` field, a `receiveAmount` field, or neither.
+@internal
 pub fn decode_amount_option() -> decode.Decoder(AmountOption) {
   use debit_amount <- decode.optional_field(
     "debitAmount",
@@ -117,6 +122,7 @@ pub type PageInfo {
 }
 
 /// Decodes a `PageInfo` from its Open Payments JSON representation.
+@internal
 pub fn decode_page_info() -> decode.Decoder(PageInfo) {
   use start_cursor <- decode.optional_field(
     "startCursor",
@@ -141,6 +147,7 @@ pub fn decode_page_info() -> decode.Decoder(PageInfo) {
 /// Prepends `#(name, value)` to `query` when `value` is `Some(v)`, otherwise
 /// leaves `query` unchanged. Used to build query strings with optional
 /// parameters.
+@internal
 pub fn add_query(
   query: List(#(String, String)),
   name: String,
@@ -240,6 +247,7 @@ pub type AccessTokenResponse {
 }
 
 /// Encodes `Limits` as its Open Payments JSON representation.
+@internal
 pub fn encode_limits(limits: Limits) -> Json {
   []
   |> optional_field("receiver", limits.receiver, json.string)
@@ -249,6 +257,7 @@ pub fn encode_limits(limits: Limits) -> Json {
 }
 
 /// Encodes an `IncomingAction` as its Open Payments JSON string value.
+@internal
 pub fn encode_incoming_action(action: IncomingAction) -> Json {
   json.string(case action {
     IncomingCreate -> "create"
@@ -261,6 +270,7 @@ pub fn encode_incoming_action(action: IncomingAction) -> Json {
 }
 
 /// Encodes an `OutgoingAction` as its Open Payments JSON string value.
+@internal
 pub fn encode_outgoing_action(action: OutgoingAction) -> Json {
   json.string(case action {
     OutgoingCreate -> "create"
@@ -272,6 +282,7 @@ pub fn encode_outgoing_action(action: OutgoingAction) -> Json {
 }
 
 /// Encodes a `QuoteAction` as its Open Payments JSON string value.
+@internal
 pub fn encode_quote_action(action: QuoteAction) -> Json {
   json.string(case action {
     QuoteCreate -> "create"
@@ -281,6 +292,7 @@ pub fn encode_quote_action(action: QuoteAction) -> Json {
 }
 
 /// Encodes an `Access` as its Open Payments JSON representation.
+@internal
 pub fn encode_access(access: Access) -> Json {
   case access {
     AccessIncoming(actions, identifier) ->
@@ -307,6 +319,7 @@ pub fn encode_access(access: Access) -> Json {
 }
 
 /// Decodes an `IncomingAction` from its Open Payments JSON string value.
+@internal
 pub fn decode_incoming_action() -> decode.Decoder(IncomingAction) {
   use action <- decode.then(decode.string)
   case action {
@@ -321,6 +334,7 @@ pub fn decode_incoming_action() -> decode.Decoder(IncomingAction) {
 }
 
 /// Decodes an `OutgoingAction` from its Open Payments JSON string value.
+@internal
 pub fn decode_outgoing_action() -> decode.Decoder(OutgoingAction) {
   use action <- decode.then(decode.string)
   case action {
@@ -334,6 +348,7 @@ pub fn decode_outgoing_action() -> decode.Decoder(OutgoingAction) {
 }
 
 /// Decodes a `QuoteAction` from its Open Payments JSON string value.
+@internal
 pub fn decode_quote_action() -> decode.Decoder(QuoteAction) {
   use action <- decode.then(decode.string)
   case action {
@@ -345,6 +360,7 @@ pub fn decode_quote_action() -> decode.Decoder(QuoteAction) {
 }
 
 /// Decodes `Limits` from its Open Payments JSON representation.
+@internal
 pub fn decode_limits() -> decode.Decoder(Limits) {
   use receiver <- decode.optional_field(
     "receiver",
@@ -361,6 +377,7 @@ pub fn decode_limits() -> decode.Decoder(Limits) {
 }
 
 /// Decodes an `Access` from its Open Payments JSON representation.
+@internal
 pub fn decode_access() -> decode.Decoder(Access) {
   use kind <- decode.field("type", decode.string)
   case kind {
@@ -399,6 +416,7 @@ pub fn decode_access() -> decode.Decoder(Access) {
 
 /// Decodes an `AccessTokenResponse` from its Open Payments JSON
 /// representation.
+@internal
 pub fn decode_access_token_response() -> decode.Decoder(AccessTokenResponse) {
   use value <- decode.field("value", decode.string)
   use manage <- decode.field("manage", decode.string)

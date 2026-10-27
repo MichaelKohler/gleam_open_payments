@@ -22,6 +22,7 @@ const signature_max_age_seconds = 300
 /// Sends an unsigned GET request to `url` and returns the response body.
 /// Used for endpoints that don't require an access token or request
 /// signature, such as fetching wallet address details.
+@internal
 pub fn send_unauthenticated_request(
   url: String,
 ) -> Result(String, OpenPaymentsError) {
@@ -38,6 +39,7 @@ pub fn send_unauthenticated_request(
 /// Sends `send_unauthenticated_request` and decodes the JSON response body
 /// with `decoder`. A decode failure is wrapped as `DecodeError` with
 /// `error_context <> ": " <> <the underlying decode error>`.
+@internal
 pub fn send_unauthenticated_and_decode(
   url: String,
   decoder decoder: decode.Decoder(a),
@@ -55,6 +57,7 @@ pub fn send_unauthenticated_and_decode(
 /// returns the response body. When `body` is given, a `content-digest`
 /// header is attached and covered by the signature; when `token` is given,
 /// it is sent as a `GNAP` authorization header and likewise signed.
+@internal
 pub fn send_request(
   client: Client,
   url: String,
@@ -154,6 +157,7 @@ pub fn send_request(
 /// `error_context <> ": " <> <the underlying decode error>`, so callers get
 /// a message that both names the response and shows what went wrong parsing
 /// it.
+@internal
 pub fn send_and_decode(
   client: Client,
   url: String,
