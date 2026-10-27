@@ -368,7 +368,6 @@ pub fn request_success_test() {
       auth_server_url: base_url,
       access: [AccessQuote([QuoteCreate])],
       interact: None,
-      address: "https://wallet.example/sender",
       client_type: None,
       subject: None,
     )
@@ -412,7 +411,6 @@ pub fn request_directed_identity_with_interact_test() {
       auth_server_url: "http://127.0.0.1:1/unreachable",
       access: [AccessQuote([QuoteCreate])],
       interact: Some(Interact(start: [StartRedirect], finish: None)),
-      address: "https://wallet.example/sender",
       client_type: Some(ClientDirectedIdentity(key)),
       subject: None,
     )
@@ -442,7 +440,6 @@ pub fn request_directed_identity_without_interact_test() {
       auth_server_url: base_url,
       access: [AccessQuote([QuoteCreate])],
       interact: None,
-      address: "https://wallet.example/sender",
       client_type: Some(ClientDirectedIdentity(key)),
       subject: None,
     )
@@ -466,7 +463,6 @@ fn request_unsent(access: List(Access)) {
       auth_server_url: "http://127.0.0.1:1/unreachable",
       access: access,
       interact: None,
-      address: "https://wallet.example/sender",
       client_type: None,
       subject: None,
     ),
@@ -539,7 +535,6 @@ pub fn request_with_subject_without_interact_test() {
       auth_server_url: "http://127.0.0.1:1/unreachable",
       access: [],
       interact: None,
-      address: "https://wallet.example/sender",
       client_type: None,
       subject: Some(SubjectId(
         id: "https://wallet.example/alice",
@@ -574,7 +569,6 @@ pub fn request_with_subject_success_test() {
       auth_server_url: base_url,
       access: [],
       interact: Some(Interact(start: [StartRedirect], finish: None)),
-      address: "https://wallet.example/sender",
       client_type: None,
       subject: Some(SubjectId(
         id: "https://ilp.interledger-test.dev/michaelusd",
@@ -631,7 +625,6 @@ pub fn request_error_status_test() {
       auth_server_url: base_url,
       access: [AccessQuote([QuoteCreate])],
       interact: None,
-      address: "https://wallet.example/sender",
       client_type: None,
       subject: None,
     )

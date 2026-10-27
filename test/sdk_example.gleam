@@ -106,7 +106,6 @@ fn request_incoming_payment_grant_section(
       auth_server_url: receiver_address_info.auth_server,
       access: [access],
       interact: None,
-      address: receiver_address,
       client_type: None,
       subject: None,
     )
@@ -317,7 +316,6 @@ fn request_incoming_payment_grant_with_key(
       auth_server_url: receiver_address_info.auth_server,
       access: [access],
       interact: None,
-      address: receiver_address,
       client_type: Some(ClientDirectedIdentity(key)),
       subject: None,
     )
@@ -366,7 +364,6 @@ fn request_subject_identification_grant_section(
       auth_server_url: sender_address_info.auth_server,
       access: [],
       interact: Some(interact),
-      address: sender_address,
       client_type: None,
       subject: Some(subject),
     )
@@ -395,7 +392,6 @@ fn request_quote_grant_section(
       auth_server_url: sender_address_info.auth_server,
       access: [access],
       interact: None,
-      address: sender_address,
       client_type: None,
       subject: None,
     )
@@ -543,7 +539,6 @@ fn request_outgoing_payment_grant_section(
       auth_server_url: sender_address_info.auth_server,
       access: [access],
       interact: Some(interact),
-      address: sender_address,
       client_type: None,
       subject: None,
     )

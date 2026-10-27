@@ -95,7 +95,6 @@ pub type GrantOptions {
     auth_server_url: String,
     access: List(Access),
     interact: Option(Interact),
-    address: String,
     client_type: Option(ClientType),
     subject: Option(SubjectId),
   )
