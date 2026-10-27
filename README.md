@@ -1,4 +1,4 @@
-# Gleam Open Payment SDK
+# Gleam Open Payments SDK
 
 [![Package Version](https://img.shields.io/hexpm/v/open_payments)](https://hex.pm/packages/open_payments)
 [![Hex Docs](https://img.shields.io/badge/hex-docs-ffaff3)](https://open-payments.hexdocs.pm/)
@@ -10,15 +10,11 @@ gleam add open_payments@1
 ```
 
 ```gleam
-import gleam/io
 import gleam/option.{None, Some}
 import open_payments/client
 import open_payments/grants.{Grant, GrantOptions}
 import open_payments/incoming_payment
-import open_payments/quotes
-import open_payments/types.{
-  AccessIncoming, AccessQuote, Amount, DebitAmount, IncomingCreate, QuoteCreate,
-}
+import open_payments/types.{AccessIncoming, Amount, IncomingCreate}
 import open_payments/wallet_address
 
 pub fn main() -> Nil {
@@ -28,20 +24,17 @@ pub fn main() -> Nil {
       "be52ffa9-b61b-4a8c-8dbe-43b75cda31c9",
       "fixtures/private_key",
     )
-  let sender_address = "https://ilp.interledger-test.dev/michaelusd"
   let receiver_address = "https://ilp.interledger-test.dev/michaeleur"
 
   let assert Ok(receiver_info) = wallet_address.get(receiver_address)
-  let assert Ok(sender_info) = wallet_address.get(sender_address)
 
   let incoming_grant_options =
     GrantOptions(
-      receiver_info.auth_server,
-      [AccessIncoming([IncomingCreate], Some(receiver_address))],
-      None,
-      receiver_address,
-      None,
-      None,
+      auth_server_url: receiver_info.auth_server,
+      access: [AccessIncoming([IncomingCreate], Some(receiver_address))],
+      interact: None,
+      client_type: None,
+      subject: None,
     )
   let assert Ok(Grant(access_token: incoming_token, continue: _)) =
     grants.request(client, incoming_grant_options)
@@ -64,7 +57,7 @@ pub fn main() -> Nil {
       incoming_token.value,
       incoming_payment_options,
     )
-  io.debug(payment)
+  echo payment
 
   Nil
 }
@@ -77,7 +70,6 @@ Further documentation can be found at <https://open-payments.hexdocs.pm/>.
 ## Development
 
 ```sh
-gleam run   # Run the project
 gleam test  # Run the tests
 ```
 
