@@ -4,9 +4,9 @@ import gleam/option.{None, Some}
 import open_payments/error.{ApiError}
 import open_payments/grants.{
   type GrantResponse, AccessTokenBodyProperty, Body, ClientDirectedIdentity,
-  ClientWalletAddressObject, ContinueAccessToken, ContinueResponse, Finish,
-  Grant, Interact, InteractResponse, PendingGrant, Subject, SubjectId,
-  SubjectIdFormatUri,
+  ClientWalletAddressObject, ClientWalletAddressString, ContinueAccessToken,
+  ContinueResponse, Finish, Grant, Interact, InteractResponse, PendingGrant,
+  Subject, SubjectId, SubjectIdFormatUri,
 }
 import open_payments/types.{
   AccessIncoming, AccessQuote, AccessTokenResponse, IncomingCreate, Key,
@@ -77,6 +77,13 @@ pub fn encode_client_wallet_address_test() {
   let client = ClientWalletAddressObject("https://wallet.example/sender")
 
   assert json.to_string(grants.encode_client(client))
+    == "{\"walletAddress\":\"https://wallet.example/sender\"}"
+}
+
+pub fn encode_client_wallet_address_string_test() {
+  let client = ClientWalletAddressString("https://wallet.example/sender")
+
+  assert json.to_string(grants.encode_client(client))
     == "\"https://wallet.example/sender\""
 }
 
@@ -106,7 +113,7 @@ pub fn encode_body_test() {
     )
 
   assert json.to_string(grants.encode_body(body))
-    == "{\"access_token\":{\"access\":[{\"type\":\"quote\",\"actions\":[\"create\"]}]},\"client\":\"https://wallet.example/sender\"}"
+    == "{\"access_token\":{\"access\":[{\"type\":\"quote\",\"actions\":[\"create\"]}]},\"client\":{\"walletAddress\":\"https://wallet.example/sender\"}}"
 }
 
 pub fn encode_body_with_subject_test() {
@@ -126,7 +133,7 @@ pub fn encode_body_with_subject_test() {
     )
 
   assert json.to_string(grants.encode_body(body))
-    == "{\"subject\":{\"sub_ids\":[{\"id\":\"https://wallet.example/alice\",\"format\":\"uri\"}]},\"interact\":{\"start\":[\"redirect\"]},\"client\":\"https://wallet.example/sender\"}"
+    == "{\"subject\":{\"sub_ids\":[{\"id\":\"https://wallet.example/alice\",\"format\":\"uri\"}]},\"interact\":{\"start\":[\"redirect\"]},\"client\":{\"walletAddress\":\"https://wallet.example/sender\"}}"
 }
 
 pub fn encode_subject_test() {
@@ -404,7 +411,15 @@ pub fn request_success_test() {
             ),
           ]),
         ),
-        #("client", json.string("https://ilp.interledger-test.dev/michaelusd")),
+        #(
+          "client",
+          json.object([
+            #(
+              "walletAddress",
+              json.string("https://ilp.interledger-test.dev/michaelusd"),
+            ),
+          ]),
+        ),
       ]),
     )
 }
@@ -471,7 +486,15 @@ pub fn request_with_subject_success_test() {
           "interact",
           json.object([#("start", json.array(["redirect"], json.string))]),
         ),
-        #("client", json.string("https://ilp.interledger-test.dev/michaelusd")),
+        #(
+          "client",
+          json.object([
+            #(
+              "walletAddress",
+              json.string("https://ilp.interledger-test.dev/michaelusd"),
+            ),
+          ]),
+        ),
       ]),
     )
 }

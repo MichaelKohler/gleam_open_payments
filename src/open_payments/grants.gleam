@@ -27,8 +27,14 @@ pub type Interact {
 /// directly with its public key (`jwk`), or via a wallet address whose keys
 /// the auth server can look up.
 pub type ClientType {
+  /// Sent as `{"jwk": ...}`. Only usable for non-interactive grants.
   ClientDirectedIdentity(jwk: Key)
+  /// Sent as `{"walletAddress": ...}`.
   ClientWalletAddressObject(wallet_address: String)
+  /// Sent as a bare wallet address string. Deprecated by the Open Payments
+  /// spec in favour of `ClientWalletAddressObject`; only use it for auth
+  /// servers that don't yet accept the object form.
+  ClientWalletAddressString(wallet_address: String)
 }
 
 /// Currently the Open Payments spec only defines `"uri"`.
@@ -54,7 +60,8 @@ pub type Subject {
 /// kind (e.g. incoming-payment and quote) to request them all in a single
 /// grant, or be left as `[]` for a subject-only request. `client_type`
 /// defaults to identifying the client by its own wallet address
-/// (`ClientWalletAddressObject`) when left as `None`; pass
+/// (`ClientWalletAddressObject`, sent as `{"walletAddress": ...}`) when
+/// left as `None`; pass
 /// `Some(ClientDirectedIdentity(key))` to identify the client by its public
 /// key instead. `subject` requests information about a subject (e.g. to
 /// confirm wallet address ownership) rather than, or alongside, an access
@@ -173,7 +180,9 @@ pub fn encode_key(key: Key) -> Json {
 pub fn encode_client(client: ClientType) -> Json {
   case client {
     ClientDirectedIdentity(jwk) -> json.object([#("jwk", encode_key(jwk))])
-    ClientWalletAddressObject(wallet_address) -> json.string(wallet_address)
+    ClientWalletAddressObject(wallet_address) ->
+      json.object([#("walletAddress", json.string(wallet_address))])
+    ClientWalletAddressString(wallet_address) -> json.string(wallet_address)
   }
 }
 
