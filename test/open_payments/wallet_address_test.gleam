@@ -67,14 +67,7 @@ pub fn decode_key_test() {
     ])
 
   assert json.parse(json.to_string(json_value), wallet_address.decode_key())
-    == Ok(Key(
-      kid: "key-1",
-      x: "base64url-value",
-      alg: "EdDSA",
-      kty: "OKP",
-      crv: "Ed25519",
-      use_: "sig",
-    ))
+    == Ok(Key(kid: "key-1", x: "base64url-value"))
 }
 
 pub fn decode_key_without_use_test() {
@@ -88,26 +81,36 @@ pub fn decode_key_without_use_test() {
     ])
 
   assert json.parse(json.to_string(json_value), wallet_address.decode_key())
-    == Ok(Key(
-      kid: "key-1",
-      x: "base64url-value",
-      alg: "EdDSA",
-      kty: "OKP",
-      crv: "Ed25519",
-      use_: "sig",
-    ))
+    == Ok(Key(kid: "key-1", x: "base64url-value"))
+}
+
+pub fn decode_key_rejects_other_key_types_test() {
+  let key_json = fn(field, value) {
+    [
+      #("kid", json.string("key-1")),
+      #("x", json.string("base64url-value")),
+      #("alg", json.string("EdDSA")),
+      #("kty", json.string("OKP")),
+      #("crv", json.string("Ed25519")),
+      #("use", json.string("sig")),
+    ]
+    |> list.key_set(field, json.string(value))
+    |> json.object
+    |> json.to_string
+  }
+
+  let assert Error(_) =
+    json.parse(key_json("alg", "ES256"), wallet_address.decode_key())
+  let assert Error(_) =
+    json.parse(key_json("kty", "EC"), wallet_address.decode_key())
+  let assert Error(_) =
+    json.parse(key_json("crv", "X25519"), wallet_address.decode_key())
+  let assert Error(_) =
+    json.parse(key_json("use", "enc"), wallet_address.decode_key())
 }
 
 pub fn decode_keys_test() {
-  let key =
-    Key(
-      kid: "key-1",
-      x: "value",
-      alg: "EdDSA",
-      kty: "OKP",
-      crv: "Ed25519",
-      use_: "sig",
-    )
+  let key = Key(kid: "key-1", x: "value")
   let json_value =
     json.object([
       #(
@@ -116,10 +119,10 @@ pub fn decode_keys_test() {
           json.object([
             #("kid", json.string(k.kid)),
             #("x", json.string(k.x)),
-            #("alg", json.string(k.alg)),
-            #("kty", json.string(k.kty)),
-            #("crv", json.string(k.crv)),
-            #("use", json.string(k.use_)),
+            #("alg", json.string("EdDSA")),
+            #("kty", json.string("OKP")),
+            #("crv", json.string("Ed25519")),
+            #("use", json.string("sig")),
           ])
         }),
       ),

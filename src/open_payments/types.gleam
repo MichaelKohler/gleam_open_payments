@@ -11,15 +11,12 @@ const max_page_size = 100
 
 /// A public key in JWK format, as published on a wallet address's JWKS
 /// endpoint or sent as part of a client-directed-identity grant request.
+/// Open Payments only allows Ed25519 signing keys, so the JWK's fixed
+/// members (`"alg": "EdDSA"`, `"kty": "OKP"`, `"crv": "Ed25519"` and
+/// `"use": "sig"`) are not stored; they are written when encoding and
+/// checked when decoding.
 pub type Key {
-  Key(
-    kid: String,
-    x: String,
-    alg: String,
-    kty: String,
-    crv: String,
-    use_: String,
-  )
+  Key(kid: String, x: String)
 }
 
 /// A monetary amount, expressed as a `value` in the asset's minor

@@ -6,8 +6,8 @@ import open_payments/error.{ApiError, TransportError, ValidationError}
 import open_payments/grants.{
   type GrantResponse, AccessTokenBodyProperty, Body, ClientDirectedIdentity,
   ClientWalletAddressObject, ClientWalletAddressString, ContinueAccessToken,
-  ContinueResponse, Finish, Grant, Interact, InteractResponse, PendingGrant,
-  Subject, SubjectId, SubjectIdFormatUri,
+  ContinueResponse, Finish, FinishRedirect, Grant, Interact, InteractResponse,
+  PendingGrant, StartRedirect, Subject, SubjectId, SubjectIdFormatUri,
 }
 import open_payments/types.{
   type Access, AccessIncoming, AccessOutgoing, AccessQuote, AccessTokenResponse,
@@ -17,7 +17,7 @@ import support/mock_server
 import support/test_client
 
 pub fn encode_finish_test() {
-  let finish = Finish("redirect", "https://example.com/finish", "nonce")
+  let finish = Finish(FinishRedirect, "https://example.com/finish", "nonce")
 
   assert json.to_string(grants.encode_finish(finish))
     == "{\"method\":\"redirect\",\"uri\":\"https://example.com/finish\",\"nonce\":\"nonce\"}"
@@ -26,8 +26,8 @@ pub fn encode_finish_test() {
 pub fn encode_interact_with_finish_test() {
   let interact =
     Interact(
-      start: ["redirect"],
-      finish: Some(Finish("redirect", "https://example.com/finish", "nonce")),
+      start: [StartRedirect],
+      finish: Some(Finish(FinishRedirect, "https://example.com/finish", "nonce")),
     )
 
   assert json.to_string(grants.encode_interact(interact))
@@ -35,7 +35,7 @@ pub fn encode_interact_with_finish_test() {
 }
 
 pub fn encode_interact_without_finish_test() {
-  let interact = Interact(start: ["redirect"], finish: None)
+  let interact = Interact(start: [StartRedirect], finish: None)
 
   assert json.to_string(grants.encode_interact(interact))
     == "{\"start\":[\"redirect\"]}"
@@ -60,15 +60,7 @@ pub fn encode_access_token_multiple_access_test() {
 }
 
 pub fn encode_key_test() {
-  let key =
-    Key(
-      kid: "key-1",
-      x: "value",
-      alg: "EdDSA",
-      kty: "OKP",
-      crv: "Ed25519",
-      use_: "sig",
-    )
+  let key = Key(kid: "key-1", x: "value")
 
   assert json.to_string(grants.encode_key(key))
     == "{\"kid\":\"key-1\",\"x\":\"value\",\"alg\":\"EdDSA\",\"kty\":\"OKP\",\"crv\":\"Ed25519\",\"use\":\"sig\"}"
@@ -89,15 +81,7 @@ pub fn encode_client_wallet_address_string_test() {
 }
 
 pub fn encode_client_directed_identity_test() {
-  let key =
-    Key(
-      kid: "key-1",
-      x: "value",
-      alg: "EdDSA",
-      kty: "OKP",
-      crv: "Ed25519",
-      use_: "sig",
-    )
+  let key = Key(kid: "key-1", x: "value")
   let client = ClientDirectedIdentity(key)
 
   assert json.to_string(grants.encode_client(client))
@@ -122,7 +106,7 @@ pub fn encode_body_with_subject_test() {
     Body(
       access_token: None,
       client: ClientWalletAddressObject("https://wallet.example/sender"),
-      interact: Some(Interact(start: ["redirect"], finish: None)),
+      interact: Some(Interact(start: [StartRedirect], finish: None)),
       subject: Some(SubjectId(
         id: "https://wallet.example/alice",
         format: SubjectIdFormatUri,
@@ -421,21 +405,13 @@ pub fn request_success_test() {
 
 pub fn request_directed_identity_with_interact_test() {
   let client = test_client.client()
-  let key =
-    Key(
-      kid: "key-1",
-      x: "value",
-      alg: "EdDSA",
-      kty: "OKP",
-      crv: "Ed25519",
-      use_: "sig",
-    )
+  let key = Key(kid: "key-1", x: "value")
   let options =
     grants.GrantOptions(
       // Unreachable: the request must be rejected before anything is sent.
       auth_server_url: "http://127.0.0.1:1/unreachable",
       access: [AccessQuote([QuoteCreate])],
-      interact: Some(Interact(start: ["redirect"], finish: None)),
+      interact: Some(Interact(start: [StartRedirect], finish: None)),
       address: "https://wallet.example/sender",
       client_type: Some(ClientDirectedIdentity(key)),
       subject: None,
@@ -460,15 +436,7 @@ pub fn request_directed_identity_without_interact_test() {
       ),
     )
   let client = test_client.client()
-  let key =
-    Key(
-      kid: "key-1",
-      x: "value",
-      alg: "EdDSA",
-      kty: "OKP",
-      crv: "Ed25519",
-      use_: "sig",
-    )
+  let key = Key(kid: "key-1", x: "value")
   let options =
     grants.GrantOptions(
       auth_server_url: base_url,
@@ -598,7 +566,7 @@ pub fn request_with_subject_success_test() {
     grants.GrantOptions(
       auth_server_url: base_url,
       access: [],
-      interact: Some(Interact(start: ["redirect"], finish: None)),
+      interact: Some(Interact(start: [StartRedirect], finish: None)),
       address: "https://wallet.example/sender",
       client_type: None,
       subject: Some(SubjectId(

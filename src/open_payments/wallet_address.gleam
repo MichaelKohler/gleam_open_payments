@@ -44,12 +44,20 @@ pub fn decode_wallet_info() -> decode.Decoder(WalletInfo) {
 pub fn decode_key() -> decode.Decoder(Key) {
   use kid <- decode.field("kid", decode.string)
   use x <- decode.field("x", decode.string)
-  use alg <- decode.field("alg", decode.string)
-  use kty <- decode.field("kty", decode.string)
-  use crv <- decode.field("crv", decode.string)
-  use use_ <- decode.optional_field("use", "sig", decode.string)
+  use _ <- decode.field("alg", decode_exactly("EdDSA"))
+  use _ <- decode.field("kty", decode_exactly("OKP"))
+  use _ <- decode.field("crv", decode_exactly("Ed25519"))
+  use _ <- decode.optional_field("use", "sig", decode_exactly("sig"))
 
-  decode.success(Key(kid: kid, x: x, alg: alg, kty: kty, crv: crv, use_: use_))
+  decode.success(Key(kid: kid, x: x))
+}
+
+fn decode_exactly(expected: String) -> decode.Decoder(String) {
+  use value <- decode.then(decode.string)
+  case value == expected {
+    True -> decode.success(value)
+    False -> decode.failure(value, expected)
+  }
 }
 
 @internal

@@ -18,16 +18,28 @@ import open_payments/types.{
 /// Payments spec.
 const max_access_items = 3
 
+/// How the client is notified once the user has completed interaction.
+/// Currently the Open Payments spec only defines `"redirect"`.
+pub type FinishMethod {
+  FinishRedirect
+}
+
 /// How the client is notified once the user has completed interaction with
 /// the auth server, as requested in a grant's `interact` options.
 pub type Finish {
-  Finish(method: String, uri: String, nonce: String)
+  Finish(method: FinishMethod, uri: String, nonce: String)
+}
+
+/// How the client can start an interaction with the user.
+/// Currently the Open Payments spec only defines `"redirect"`.
+pub type StartMode {
+  StartRedirect
 }
 
 /// The interaction methods to request for a grant, and optionally how the
 /// client should be notified when interaction finishes.
 pub type Interact {
-  Interact(start: List(String), finish: Option(Finish))
+  Interact(start: List(StartMode), finish: Option(Finish))
 }
 
 /// How the client making the grant request identifies itself: either
@@ -133,17 +145,31 @@ pub type GrantResponse {
 }
 
 @internal
+pub fn encode_finish_method(method: FinishMethod) -> Json {
+  json.string(case method {
+    FinishRedirect -> "redirect"
+  })
+}
+
+@internal
 pub fn encode_finish(finish: Finish) -> Json {
   json.object([
-    #("method", json.string(finish.method)),
+    #("method", encode_finish_method(finish.method)),
     #("uri", json.string(finish.uri)),
     #("nonce", json.string(finish.nonce)),
   ])
 }
 
 @internal
+pub fn encode_start_mode(mode: StartMode) -> Json {
+  json.string(case mode {
+    StartRedirect -> "redirect"
+  })
+}
+
+@internal
 pub fn encode_interact(interact: Interact) -> Json {
-  [#("start", json.array(interact.start, json.string))]
+  [#("start", json.array(interact.start, encode_start_mode))]
   |> optional_field("finish", interact.finish, encode_finish)
   |> json.object
 }
@@ -178,10 +204,10 @@ pub fn encode_key(key: Key) -> Json {
   json.object([
     #("kid", json.string(key.kid)),
     #("x", json.string(key.x)),
-    #("alg", json.string(key.alg)),
-    #("kty", json.string(key.kty)),
-    #("crv", json.string(key.crv)),
-    #("use", json.string(key.use_)),
+    #("alg", json.string("EdDSA")),
+    #("kty", json.string("OKP")),
+    #("crv", json.string("Ed25519")),
+    #("use", json.string("sig")),
   ])
 }
 

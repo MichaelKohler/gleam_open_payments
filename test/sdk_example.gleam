@@ -12,8 +12,9 @@ import open_payments/error.{
   ValidationError,
 }
 import open_payments/grants.{
-  type GrantResponse, ClientDirectedIdentity, Finish, Grant, GrantOptions,
-  Interact, PendingGrant, SubjectId, SubjectIdFormatUri,
+  type GrantResponse, ClientDirectedIdentity, Finish, FinishRedirect, Grant,
+  GrantOptions, Interact, PendingGrant, StartRedirect, SubjectId,
+  SubjectIdFormatUri,
 }
 import open_payments/incoming_payment.{
   type IncomingPayment, type IncomingPaymentList, CreateOptions, ListOptions,
@@ -353,9 +354,9 @@ fn request_subject_identification_grant_section(
   let subject = SubjectId(id: sender_address, format: SubjectIdFormatUri)
   let interact =
     Interact(
-      start: ["redirect"],
+      start: [StartRedirect],
       finish: Some(Finish(
-        method: "redirect",
+        method: FinishRedirect,
         uri: "https://example.com/finish",
         nonce: "nonce",
       )),
@@ -530,9 +531,9 @@ fn request_outgoing_payment_grant_section(
     )
   let interact =
     Interact(
-      start: ["redirect"],
+      start: [StartRedirect],
       finish: Some(Finish(
-        method: "redirect",
+        method: FinishRedirect,
         uri: "https://example.com/finish",
         nonce: "nonce",
       )),
@@ -868,19 +869,7 @@ fn print_wallet_info(info: WalletInfo) -> Nil {
 fn print_keys(keys: List(Key)) -> Nil {
   case keys {
     [] -> io.println("  (no keys found)")
-    _ ->
-      list.each(keys, fn(key) {
-        io.println(
-          "  - kid: "
-          <> key.kid
-          <> ", kty: "
-          <> key.kty
-          <> ", crv: "
-          <> key.crv
-          <> ", alg: "
-          <> key.alg,
-        )
-      })
+    _ -> list.each(keys, fn(key) { io.println("  - kid: " <> key.kid) })
   }
 }
 
