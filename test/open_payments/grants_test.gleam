@@ -473,6 +473,13 @@ fn request_unsent(access: List(Access)) {
   )
 }
 
+pub fn request_without_access_or_subject_test() {
+  assert request_unsent([])
+    == Error(ValidationError(
+      "A grant request requires at least one access item or a subject",
+    ))
+}
+
 pub fn request_too_many_access_items_test() {
   assert request_unsent([
       AccessIncoming([IncomingCreate], None),

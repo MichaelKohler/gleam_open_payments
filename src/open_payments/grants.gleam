@@ -77,7 +77,8 @@ pub type Subject {
 /// The options for a grant request. `access` may list up to three unique
 /// access items (e.g. incoming-payment and quote) to request them all in a
 /// single grant, each with unique actions, or be left as `[]` for a
-/// subject-only request. `client_type`
+/// subject-only request; leaving both `access` and `subject` empty makes
+/// `request` return a `ValidationError`. `client_type`
 /// defaults to identifying the client by its own wallet address
 /// (`ClientWalletAddressObject`, sent as `{"walletAddress": ...}`) when
 /// left as `None`; pass
@@ -343,6 +344,13 @@ fn validate_options(options: GrantOptions) -> Result(Nil, OpenPaymentsError) {
       _, _, _ -> Ok(Nil)
     },
   )
+  use Nil <- result.try(case options.access, options.subject {
+    [], None ->
+      Error(ValidationError(
+        "A grant request requires at least one access item or a subject",
+      ))
+    _, _ -> Ok(Nil)
+  })
 
   validate_access(options.access)
 }
