@@ -167,6 +167,56 @@ pub fn get_keys_success_test() {
   assert captured.path == "/jwks.json"
 }
 
+pub fn decode_keys_skips_unusable_keys_test() {
+  let ed25519_key = fn(kid) {
+    json.object([
+      #("kid", json.string(kid)),
+      #("x", json.string("value")),
+      #("alg", json.string("EdDSA")),
+      #("kty", json.string("OKP")),
+      #("crv", json.string("Ed25519")),
+    ])
+  }
+  let json_value =
+    json.object([
+      #(
+        "keys",
+        json.preprocessed_array([
+          ed25519_key("old-key"),
+          // A P-256 key, as might be listed during a key migration.
+          json.object([
+            #("kid", json.string("ec-key")),
+            #("kty", json.string("EC")),
+            #("crv", json.string("P-256")),
+            #("alg", json.string("ES256")),
+            #("x", json.string("x-value")),
+            #("y", json.string("y-value")),
+          ]),
+          // An Ed25519 key marked for encryption rather than signing.
+          json.object([
+            #("kid", json.string("enc-key")),
+            #("x", json.string("value")),
+            #("alg", json.string("EdDSA")),
+            #("kty", json.string("OKP")),
+            #("crv", json.string("Ed25519")),
+            #("use", json.string("enc")),
+          ]),
+          json.string("not a key"),
+          ed25519_key("new-key"),
+        ]),
+      ),
+    ])
+
+  assert json.parse(json.to_string(json_value), wallet_address.decode_keys())
+    == Ok([Key(kid: "old-key", x: "value"), Key(kid: "new-key", x: "value")])
+}
+
+pub fn decode_keys_requires_keys_list_test() {
+  let assert Error(_) =
+    json.parse("{\"keys\":\"nope\"}", wallet_address.decode_keys())
+  let assert Error(_) = json.parse("{}", wallet_address.decode_keys())
+}
+
 pub fn get_keys_error_status_test() {
   let #(base_url, _subject) =
     mock_server.start(status: 404, headers: [], body: "not found")

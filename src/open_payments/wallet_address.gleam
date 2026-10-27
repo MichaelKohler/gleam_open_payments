@@ -60,11 +60,16 @@ fn decode_exactly(expected: String) -> decode.Decoder(String) {
   }
 }
 
+/// Decodes a JWKS, skipping any key that isn't an Ed25519 signing key (or is
+/// malformed) rather than failing the whole set, so that a wallet listing
+/// other keys, e.g. during a key migration, still yields its usable keys.
 @internal
 pub fn decode_keys() -> decode.Decoder(List(Key)) {
-  use keys <- decode.field("keys", decode.list(decode_key()))
+  let usable_key =
+    decode.one_of(decode_key() |> decode.map(Some), or: [decode.success(None)])
+  use keys <- decode.field("keys", decode.list(usable_key))
 
-  decode.success(keys)
+  decode.success(option.values(keys))
 }
 
 /// Fetches the public details of the wallet address, including the auth
@@ -79,7 +84,8 @@ pub fn get(address: String) -> Result(WalletInfo, OpenPaymentsError) {
 }
 
 /// Fetches the public keys (JWKS) registered on the wallet address, used to
-/// verify signatures made by its owner.
+/// verify signatures made by its owner. Only Ed25519 signing keys are
+/// returned; any other keys in the set are skipped.
 /// See https://openpayments.dev/apis/wallet-address-server/operations/get-wallet-address-keys/
 pub fn get_keys(address: String) -> Result(List(Key), OpenPaymentsError) {
   let url = address <> "/jwks.json"
