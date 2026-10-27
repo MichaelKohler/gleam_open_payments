@@ -33,6 +33,14 @@ pub type IncomingPayment {
   )
 }
 
+/// The public view of an incoming payment, as returned by `get_public` to a
+/// client that doesn't hold an access token for it. `auth_server` is where a
+/// grant for the incoming payment can be requested.
+/// See https://openpayments.dev/apis/resource-server/operations/get-incoming-payment/
+pub type PublicIncomingPayment {
+  PublicIncomingPayment(auth_server: String, received_amount: Option(Amount))
+}
+
 /// A page of incoming payments, as returned by `list`.
 pub type IncomingPaymentList {
   IncomingPaymentList(pagination: PageInfo, result: List(IncomingPayment))
@@ -120,6 +128,20 @@ pub fn decode_incoming_payment() -> decode.Decoder(IncomingPayment) {
 }
 
 @internal
+pub fn decode_public_incoming_payment() -> decode.Decoder(PublicIncomingPayment) {
+  use auth_server <- decode.field("authServer", decode.string)
+  use received_amount <- decode.optional_field(
+    "receivedAmount",
+    None,
+    decode_amount() |> decode.map(Some),
+  )
+  decode.success(PublicIncomingPayment(
+    auth_server: auth_server,
+    received_amount: received_amount,
+  ))
+}
+
+@internal
 pub fn decode_incoming_payment_list() -> decode.Decoder(IncomingPaymentList) {
   use pagination <- decode.field("pagination", decode_page_info())
   use result <- decode.field("result", decode.list(decode_incoming_payment()))
@@ -192,6 +214,21 @@ pub fn get(
     token: Some(access_token),
     decoder: decode_incoming_payment(),
     error_context: "Failed to parse incoming payment response",
+  )
+}
+
+/// Fetches the public details of an incoming payment, without signing the
+/// request or sending an access token. Use `get` instead to read the full
+/// incoming payment with an access token.
+/// `id` is the full incoming payment URL.
+/// See https://openpayments.dev/apis/resource-server/operations/get-incoming-payment/
+pub fn get_public(
+  id: String,
+) -> Result(PublicIncomingPayment, OpenPaymentsError) {
+  request.send_unauthenticated_and_decode(
+    id,
+    decoder: decode_public_incoming_payment(),
+    error_context: "Failed to parse public incoming payment response",
   )
 }
 

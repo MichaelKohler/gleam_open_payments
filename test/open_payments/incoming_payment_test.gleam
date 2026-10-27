@@ -5,6 +5,7 @@ import gleam/string
 import open_payments/error.{ApiError}
 import open_payments/incoming_payment.{
   CreateOptions, IlpPaymentMethod, IncomingPayment, ListOptions,
+  PublicIncomingPayment,
 }
 import open_payments/types.{Amount}
 import support/mock_server
@@ -294,6 +295,75 @@ pub fn get_error_status_test() {
       "access-token",
       base_url <> "/incoming-payments/1",
     )
+    == Error(ApiError(status: 404, body: "not found", error: None, as_uri: None))
+}
+
+pub fn decode_public_incoming_payment_test() {
+  let json_value =
+    json.object([
+      #("authServer", json.string("https://auth.example")),
+      #(
+        "receivedAmount",
+        json.object([
+          #("value", json.string("500")),
+          #("assetCode", json.string("USD")),
+          #("assetScale", json.int(2)),
+        ]),
+      ),
+    ])
+
+  assert json.parse(
+      json.to_string(json_value),
+      incoming_payment.decode_public_incoming_payment(),
+    )
+    == Ok(PublicIncomingPayment(
+      auth_server: "https://auth.example",
+      received_amount: Some(Amount("500", "USD", 2)),
+    ))
+}
+
+pub fn decode_public_incoming_payment_without_received_amount_test() {
+  let json_value =
+    json.object([#("authServer", json.string("https://auth.example"))])
+
+  assert json.parse(
+      json.to_string(json_value),
+      incoming_payment.decode_public_incoming_payment(),
+    )
+    == Ok(PublicIncomingPayment(
+      auth_server: "https://auth.example",
+      received_amount: None,
+    ))
+}
+
+pub fn get_public_success_test() {
+  let #(base_url, subject) =
+    mock_server.start(
+      status: 200,
+      headers: [],
+      body: json.to_string(
+        json.object([#("authServer", json.string("https://auth.example"))]),
+      ),
+    )
+
+  assert incoming_payment.get_public(base_url <> "/incoming-payments/1")
+    == Ok(PublicIncomingPayment(
+      auth_server: "https://auth.example",
+      received_amount: None,
+    ))
+
+  let captured = mock_server.await_request(subject)
+  assert captured.method == "GET"
+  assert captured.path == "/incoming-payments/1"
+  assert list.key_find(captured.headers, "authorization") == Error(Nil)
+  assert list.key_find(captured.headers, "signature") == Error(Nil)
+}
+
+pub fn get_public_error_status_test() {
+  let #(base_url, _subject) =
+    mock_server.start(status: 404, headers: [], body: "not found")
+
+  assert incoming_payment.get_public(base_url <> "/incoming-payments/1")
     == Error(ApiError(status: 404, body: "not found", error: None, as_uri: None))
 }
 
