@@ -2,7 +2,7 @@ import gleam/json
 import gleam/list
 import gleam/option.{None, Some}
 import open_payments/error.{ApiError}
-import open_payments/quotes.{CreateOptions, Quote}
+import open_payments/quotes.{CreateOptions, Ilp, Quote}
 import open_payments/types.{Amount, DebitAmount, NoAmount}
 import support/mock_server
 import support/test_client
@@ -13,6 +13,7 @@ pub fn encode_create_body_test() {
       resource_server: "https://resource.example",
       wallet_address: "https://wallet.example/sender",
       receiver: "https://resource.example/incoming-payments/1",
+      method: Ilp,
       amount: DebitAmount(Amount("500", "USD", 2)),
     )
 
@@ -26,6 +27,7 @@ pub fn encode_create_body_no_amount_test() {
       resource_server: "https://resource.example",
       wallet_address: "https://wallet.example/sender",
       receiver: "https://resource.example/incoming-payments/1",
+      method: Ilp,
       amount: NoAmount,
     )
 
@@ -53,7 +55,7 @@ pub fn decode_quote_test() {
       receiver: "https://resource.example/incoming-payments/1",
       debit_amount: Amount("500", "USD", 2),
       receive_amount: Amount("480", "EUR", 2),
-      method: "ilp",
+      method: Ilp,
       created_at: "2024-01-01T00:00:00Z",
       expires_at: Some("2024-01-01T00:05:00Z"),
     ))
@@ -78,10 +80,26 @@ pub fn decode_quote_without_expiry_test() {
       receiver: "https://resource.example/incoming-payments/1",
       debit_amount: Amount("500", "USD", 2),
       receive_amount: Amount("480", "EUR", 2),
-      method: "ilp",
+      method: Ilp,
       created_at: "2024-01-01T00:00:00Z",
       expires_at: None,
     ))
+}
+
+pub fn decode_quote_rejects_unknown_method_test() {
+  let json_value =
+    json.object([
+      #("id", json.string("https://resource.example/quotes/1")),
+      #("walletAddress", json.string("https://wallet.example/sender")),
+      #("receiver", json.string("https://resource.example/incoming-payments/1")),
+      #("debitAmount", types.encode_amount(Amount("500", "USD", 2))),
+      #("receiveAmount", types.encode_amount(Amount("480", "EUR", 2))),
+      #("method", json.string("card")),
+      #("createdAt", json.string("2024-01-01T00:00:00Z")),
+    ])
+
+  let assert Error(_) =
+    json.parse(json.to_string(json_value), quotes.decode_quote())
 }
 
 fn quote_json() -> String {
@@ -97,6 +115,7 @@ pub fn create_success_test() {
       resource_server: base_url,
       wallet_address: "https://wallet.example/sender",
       receiver: "https://resource.example/incoming-payments/1",
+      method: Ilp,
       amount: DebitAmount(Amount("500", "USD", 2)),
     )
 
@@ -119,6 +138,7 @@ pub fn create_error_status_test() {
       resource_server: base_url,
       wallet_address: "https://wallet.example/sender",
       receiver: "https://resource.example/incoming-payments/1",
+      method: Ilp,
       amount: NoAmount,
     )
 

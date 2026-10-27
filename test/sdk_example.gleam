@@ -23,7 +23,7 @@ import open_payments/outgoing_payment.{
   type GrantSpentAmounts, type OutgoingPayment, type OutgoingPaymentList,
   FromIncomingPayment, FromQuote,
 }
-import open_payments/quotes.{type Quote}
+import open_payments/quotes.{type Quote, Ilp}
 import open_payments/types.{
   type AccessTokenResponse, type Amount, type Key, AccessIncoming,
   AccessOutgoing, AccessQuote, Amount, DebitAmount, IncomingComplete,
@@ -463,6 +463,7 @@ fn create_quote_section(
       resource_server: sender_address_info.resource_server,
       wallet_address: sender_address,
       receiver: incoming_payment_id,
+      method: Ilp,
       amount: DebitAmount(Amount(
         value: "5000",
         asset_code: sender_address_info.asset_code,
@@ -948,7 +949,9 @@ fn print_quote(quote: Quote) -> Nil {
   field("Receiver", quote.receiver)
   field("Debit amount", print_amount(quote.debit_amount))
   field("Receive amount", print_amount(quote.receive_amount))
-  field("Method", quote.method)
+  field("Method", case quote.method {
+    Ilp -> "ilp"
+  })
   field("Created at", quote.created_at)
 }
 

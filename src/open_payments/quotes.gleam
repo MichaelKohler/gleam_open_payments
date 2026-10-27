@@ -9,6 +9,12 @@ import open_payments/types.{
   type Amount, type AmountOption, add_amount_option, decode_amount,
 }
 
+/// The payment method a quote is for.
+/// Currently the Open Payments spec only defines `"ilp"`.
+pub type PaymentMethod {
+  Ilp
+}
+
 /// See https://openpayments.dev/apis/resource-server/operations/get-quote/
 pub type Quote {
   Quote(
@@ -17,7 +23,7 @@ pub type Quote {
     receiver: String,
     debit_amount: Amount,
     receive_amount: Amount,
-    method: String,
+    method: PaymentMethod,
     created_at: String,
     expires_at: Option(String),
   )
@@ -29,8 +35,25 @@ pub type CreateOptions {
     resource_server: String,
     wallet_address: String,
     receiver: String,
+    method: PaymentMethod,
     amount: AmountOption,
   )
+}
+
+@internal
+pub fn encode_payment_method(method: PaymentMethod) -> Json {
+  json.string(case method {
+    Ilp -> "ilp"
+  })
+}
+
+@internal
+pub fn decode_payment_method() -> decode.Decoder(PaymentMethod) {
+  use method <- decode.then(decode.string)
+  case method {
+    "ilp" -> decode.success(Ilp)
+    _ -> decode.failure(Ilp, "PaymentMethod")
+  }
 }
 
 @internal
@@ -38,7 +61,7 @@ pub fn encode_create_body(options: CreateOptions) -> Json {
   [
     #("walletAddress", json.string(options.wallet_address)),
     #("receiver", json.string(options.receiver)),
-    #("method", json.string("ilp")),
+    #("method", encode_payment_method(options.method)),
   ]
   |> add_amount_option(options.amount)
   |> json.object
@@ -51,7 +74,7 @@ pub fn decode_quote() -> decode.Decoder(Quote) {
   use receiver <- decode.field("receiver", decode.string)
   use debit_amount <- decode.field("debitAmount", decode_amount())
   use receive_amount <- decode.field("receiveAmount", decode_amount())
-  use method <- decode.field("method", decode.string)
+  use method <- decode.field("method", decode_payment_method())
   use created_at <- decode.field("createdAt", decode.string)
   use expires_at <- decode.optional_field(
     "expiresAt",
