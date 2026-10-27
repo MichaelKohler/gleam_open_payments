@@ -1,5 +1,6 @@
 import gleam/json
 import gleam/list
+import gleam/option.{None, Some}
 import open_payments/error.{ApiError}
 import open_payments/types.{Key}
 import open_payments/wallet_address.{WalletInfo}
@@ -22,7 +23,31 @@ pub fn decode_wallet_info_test() {
     )
     == Ok(WalletInfo(
       id: "https://wallet.example/alice",
-      public_name: "Alice",
+      public_name: Some("Alice"),
+      asset_code: "USD",
+      asset_scale: 2,
+      auth_server: "https://auth.example",
+      resource_server: "https://resource.example",
+    ))
+}
+
+pub fn decode_wallet_info_without_public_name_test() {
+  let json_value =
+    json.object([
+      #("id", json.string("https://wallet.example/alice")),
+      #("assetCode", json.string("USD")),
+      #("assetScale", json.int(2)),
+      #("authServer", json.string("https://auth.example")),
+      #("resourceServer", json.string("https://resource.example")),
+    ])
+
+  assert json.parse(
+      json.to_string(json_value),
+      wallet_address.decode_wallet_info(),
+    )
+    == Ok(WalletInfo(
+      id: "https://wallet.example/alice",
+      public_name: None,
       asset_code: "USD",
       asset_scale: 2,
       auth_server: "https://auth.example",

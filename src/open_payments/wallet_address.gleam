@@ -1,4 +1,5 @@
 import gleam/dynamic/decode
+import gleam/option.{type Option, None, Some}
 import open_payments/error.{type OpenPaymentsError}
 import open_payments/request
 import open_payments/types.{type Key, Key}
@@ -8,7 +9,7 @@ import open_payments/types.{type Key, Key}
 pub type WalletInfo {
   WalletInfo(
     id: String,
-    public_name: String,
+    public_name: Option(String),
     asset_code: String,
     asset_scale: Int,
     auth_server: String,
@@ -19,7 +20,11 @@ pub type WalletInfo {
 @internal
 pub fn decode_wallet_info() -> decode.Decoder(WalletInfo) {
   use id <- decode.field("id", decode.string)
-  use public_name <- decode.field("publicName", decode.string)
+  use public_name <- decode.optional_field(
+    "publicName",
+    None,
+    decode.string |> decode.map(Some),
+  )
   use asset_code <- decode.field("assetCode", decode.string)
   use asset_scale <- decode.field("assetScale", decode.int)
   use auth_server <- decode.field("authServer", decode.string)

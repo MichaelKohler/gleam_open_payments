@@ -854,7 +854,10 @@ fn format_error(error: OpenPaymentsError) -> String {
 
 fn print_wallet_info(info: WalletInfo) -> Nil {
   field("ID", info.id)
-  field("Name", info.public_name)
+  case info.public_name {
+    Some(name) -> field("Name", name)
+    None -> Nil
+  }
   field(
     "Asset",
     info.asset_code <> " (scale " <> int.to_string(info.asset_scale) <> ")",
