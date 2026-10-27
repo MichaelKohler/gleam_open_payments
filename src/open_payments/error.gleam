@@ -32,6 +32,9 @@ pub type OpenPaymentsError {
   /// The private key file could not be read, or didn't contain a valid
   /// PKCS#8 PEM-encoded Ed25519 private key.
   KeyError(String)
+  /// The options passed in break a rule of the Open Payments spec, so the
+  /// request was not sent.
+  ValidationError(String)
 }
 
 /// The `error` object returned in the body of a failed request.

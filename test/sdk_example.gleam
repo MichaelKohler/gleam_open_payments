@@ -9,10 +9,11 @@ import open_payments/access_token
 import open_payments/client
 import open_payments/error.{
   type OpenPaymentsError, ApiError, DecodeError, KeyError, TransportError,
+  ValidationError,
 }
 import open_payments/grants.{
   type GrantResponse, ClientDirectedIdentity, Finish, Grant, GrantOptions,
-  Interact, PendingGrant, Subject, SubjectId, SubjectIdFormatUri,
+  Interact, PendingGrant, SubjectId, SubjectIdFormatUri,
 }
 import open_payments/incoming_payment.{
   type IncomingPayment, type IncomingPaymentList, CreateOptions, ListOptions,
@@ -349,10 +350,7 @@ fn request_subject_identification_grant_section(
 ) -> Nil {
   section("Subject identification grant")
 
-  let subject =
-    Subject(sub_ids: [
-      SubjectId(id: sender_address, format: SubjectIdFormatUri),
-    ])
+  let subject = SubjectId(id: sender_address, format: SubjectIdFormatUri)
   let interact =
     Interact(
       start: ["redirect"],
@@ -849,6 +847,7 @@ fn format_error(error: OpenPaymentsError) -> String {
       "server responded with " <> int.to_string(status) <> ": " <> body
     DecodeError(message) -> message
     KeyError(message) -> message
+    ValidationError(message) -> message
   }
 }
 

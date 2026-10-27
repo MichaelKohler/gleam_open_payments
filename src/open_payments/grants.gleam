@@ -4,7 +4,7 @@ import gleam/json.{type Json}
 import gleam/option.{type Option, None, Some}
 import gleam/result
 import open_payments/client.{type Client}
-import open_payments/error.{type OpenPaymentsError}
+import open_payments/error.{type OpenPaymentsError, ValidationError}
 import open_payments/request
 import open_payments/types.{
   type Access, type AccessTokenResponse, type Key, decode_access_token_response,
@@ -48,10 +48,9 @@ pub type SubjectId {
   SubjectId(id: String, format: SubjectIdFormat)
 }
 
-/// The subject a client is requesting information about (e.g. to confirm
-/// wallet address ownership), sent as part of a grant request and returned
-/// on the continuation response once interaction completes. Exactly one
-/// `sub_ids` entry may be sent, per the Open Payments spec.
+/// The subject information returned on the continuation response once
+/// interaction completes. A grant request names its subject with a single
+/// `SubjectId` instead (see `GrantOptions`).
 pub type Subject {
   Subject(sub_ids: List(SubjectId))
 }
@@ -65,8 +64,9 @@ pub type Subject {
 /// `Some(ClientDirectedIdentity(key))` to identify the client by its public
 /// key instead. `subject` requests information about a subject (e.g. to
 /// confirm wallet address ownership) rather than, or alongside, an access
-/// token; the auth server requires `interact` to be set whenever `subject`
-/// is used.
+/// token. It is sent as the single `sub_ids` entry the spec allows, and
+/// requires `interact` to be set: `request` returns a `ValidationError`
+/// otherwise.
 /// See https://openpayments.dev/apis/auth-server/operations/post-request/
 pub type GrantOptions {
   GrantOptions(
@@ -75,7 +75,7 @@ pub type GrantOptions {
     interact: Option(Interact),
     address: String,
     client_type: Option(ClientType),
-    subject: Option(Subject),
+    subject: Option(SubjectId),
   )
 }
 
@@ -90,7 +90,7 @@ pub type Body {
     access_token: Option(AccessTokenBodyProperty),
     client: ClientType,
     interact: Option(Interact),
-    subject: Option(Subject),
+    subject: Option(SubjectId),
   )
 }
 
@@ -160,8 +160,8 @@ pub fn encode_subject_id(subject_id: SubjectId) -> Json {
 }
 
 @internal
-pub fn encode_subject(subject: Subject) -> Json {
-  json.object([#("sub_ids", json.array(subject.sub_ids, encode_subject_id))])
+pub fn encode_subject(subject: SubjectId) -> Json {
+  json.object([#("sub_ids", json.array([subject], encode_subject_id))])
 }
 
 @internal
@@ -262,6 +262,7 @@ pub fn request(
   client: Client,
   options: GrantOptions,
 ) -> Result(GrantResponse, OpenPaymentsError) {
+  use <- require_interact_for_subject(options)
   let url = options.auth_server_url
   let client_type = case options.client_type {
     Some(client_type) -> client_type
@@ -289,6 +290,17 @@ pub fn request(
     decoder: decode_grant_response(),
     error_context: "Failed to parse grant response",
   )
+}
+
+fn require_interact_for_subject(
+  options: GrantOptions,
+  next: fn() -> Result(GrantResponse, OpenPaymentsError),
+) -> Result(GrantResponse, OpenPaymentsError) {
+  case options.subject, options.interact {
+    Some(_), None ->
+      Error(ValidationError("A grant request with a subject requires interact"))
+    _, _ -> next()
+  }
 }
 
 /// Returns `True` if the grant requires the user to complete an interaction

@@ -1,7 +1,7 @@
 import gleam/json
 import gleam/list
 import gleam/option.{None, Some}
-import open_payments/error.{ApiError}
+import open_payments/error.{ApiError, ValidationError}
 import open_payments/grants.{
   type GrantResponse, AccessTokenBodyProperty, Body, ClientDirectedIdentity,
   ClientWalletAddressObject, ClientWalletAddressString, ContinueAccessToken,
@@ -122,14 +122,10 @@ pub fn encode_body_with_subject_test() {
       access_token: None,
       client: ClientWalletAddressObject("https://wallet.example/sender"),
       interact: Some(Interact(start: ["redirect"], finish: None)),
-      subject: Some(
-        Subject(sub_ids: [
-          SubjectId(
-            id: "https://wallet.example/alice",
-            format: SubjectIdFormatUri,
-          ),
-        ]),
-      ),
+      subject: Some(SubjectId(
+        id: "https://wallet.example/alice",
+        format: SubjectIdFormatUri,
+      )),
     )
 
   assert json.to_string(grants.encode_body(body))
@@ -138,9 +134,7 @@ pub fn encode_body_with_subject_test() {
 
 pub fn encode_subject_test() {
   let subject =
-    Subject(sub_ids: [
-      SubjectId(id: "https://wallet.example/alice", format: SubjectIdFormatUri),
-    ])
+    SubjectId(id: "https://wallet.example/alice", format: SubjectIdFormatUri)
 
   assert json.to_string(grants.encode_subject(subject))
     == "{\"sub_ids\":[{\"id\":\"https://wallet.example/alice\",\"format\":\"uri\"}]}"
@@ -424,6 +418,26 @@ pub fn request_success_test() {
     )
 }
 
+pub fn request_with_subject_without_interact_test() {
+  let client = test_client.client()
+  let options =
+    grants.GrantOptions(
+      // Unreachable: the request must be rejected before anything is sent.
+      auth_server_url: "http://127.0.0.1:1/unreachable",
+      access: [],
+      interact: None,
+      address: "https://wallet.example/sender",
+      client_type: None,
+      subject: Some(SubjectId(
+        id: "https://wallet.example/alice",
+        format: SubjectIdFormatUri,
+      )),
+    )
+
+  assert grants.request(client, options)
+    == Error(ValidationError("A grant request with a subject requires interact"))
+}
+
 pub fn request_with_subject_success_test() {
   let #(base_url, mock_subject) =
     mock_server.start(
@@ -449,14 +463,10 @@ pub fn request_with_subject_success_test() {
       interact: Some(Interact(start: ["redirect"], finish: None)),
       address: "https://wallet.example/sender",
       client_type: None,
-      subject: Some(
-        Subject(sub_ids: [
-          SubjectId(
-            id: "https://ilp.interledger-test.dev/michaelusd",
-            format: SubjectIdFormatUri,
-          ),
-        ]),
-      ),
+      subject: Some(SubjectId(
+        id: "https://ilp.interledger-test.dev/michaelusd",
+        format: SubjectIdFormatUri,
+      )),
     )
 
   let assert Ok(_) = grants.request(client, options)
