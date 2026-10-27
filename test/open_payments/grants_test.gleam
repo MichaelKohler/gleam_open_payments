@@ -514,7 +514,7 @@ pub fn request_error_status_test() {
     )
 
   assert grants.request(client, options)
-    == Error(ApiError(status: 404, body: "not found"))
+    == Error(ApiError(status: 404, body: "not found", error: None, as_uri: None))
 }
 
 pub fn continue_success_test() {
@@ -579,7 +579,7 @@ pub fn continue_error_status_test() {
     )
 
   assert grants.continue(client, response, Some("interact-ref-value"))
-    == Error(ApiError(status: 404, body: "not found"))
+    == Error(ApiError(status: 404, body: "not found", error: None, as_uri: None))
 }
 
 pub fn cancel_success_test() {
@@ -613,5 +613,5 @@ pub fn cancel_error_status_test() {
     )
 
   assert grants.cancel(client, response)
-    == Error(ApiError(status: 404, body: "not found"))
+    == Error(ApiError(status: 404, body: "not found", error: None, as_uri: None))
 }

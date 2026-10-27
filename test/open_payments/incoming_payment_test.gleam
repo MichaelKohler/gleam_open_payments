@@ -216,7 +216,7 @@ pub fn create_error_status_test() {
     )
 
   assert incoming_payment.create(client, "access-token", options)
-    == Error(ApiError(status: 404, body: "not found"))
+    == Error(ApiError(status: 404, body: "not found", error: None, as_uri: None))
 }
 
 pub fn list_success_test() {
@@ -262,7 +262,7 @@ pub fn list_error_status_test() {
     )
 
   assert incoming_payment.list(client, "access-token", options)
-    == Error(ApiError(status: 404, body: "not found"))
+    == Error(ApiError(status: 404, body: "not found", error: None, as_uri: None))
 }
 
 pub fn get_success_test() {
@@ -294,7 +294,7 @@ pub fn get_error_status_test() {
       "access-token",
       base_url <> "/incoming-payments/1",
     )
-    == Error(ApiError(status: 404, body: "not found"))
+    == Error(ApiError(status: 404, body: "not found", error: None, as_uri: None))
 }
 
 pub fn complete_success_test() {
@@ -324,5 +324,5 @@ pub fn complete_error_status_test() {
       "access-token",
       base_url <> "/incoming-payments/1",
     )
-    == Error(ApiError(status: 404, body: "not found"))
+    == Error(ApiError(status: 404, body: "not found", error: None, as_uri: None))
 }

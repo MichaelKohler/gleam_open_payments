@@ -72,7 +72,7 @@ pub fn rotate_error_status_test() {
   let client = test_client.client()
 
   assert access_token.rotate(client, access_token(manage: base_url))
-    == Error(ApiError(status: 404, body: "not found"))
+    == Error(ApiError(status: 404, body: "not found", error: None, as_uri: None))
 }
 
 pub fn revoke_success_test() {
@@ -94,5 +94,5 @@ pub fn revoke_error_status_test() {
   let client = test_client.client()
 
   assert access_token.revoke(client, access_token(manage: base_url))
-    == Error(ApiError(status: 404, body: "not found"))
+    == Error(ApiError(status: 404, body: "not found", error: None, as_uri: None))
 }

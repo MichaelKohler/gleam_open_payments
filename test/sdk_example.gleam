@@ -845,7 +845,7 @@ fn print_error(context: String, reason: OpenPaymentsError) -> Nil {
 fn format_error(error: OpenPaymentsError) -> String {
   case error {
     TransportError(message) -> message
-    ApiError(status: status, body: body) ->
+    ApiError(status: status, body: body, ..) ->
       "server responded with " <> int.to_string(status) <> ": " <> body
     DecodeError(message) -> message
     KeyError(message) -> message

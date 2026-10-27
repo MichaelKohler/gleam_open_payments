@@ -123,7 +123,7 @@ pub fn create_error_status_test() {
     )
 
   assert quotes.create(client, "access-token", options)
-    == Error(ApiError(status: 404, body: "not found"))
+    == Error(ApiError(status: 404, body: "not found", error: None, as_uri: None))
 }
 
 pub fn get_success_test() {
@@ -144,5 +144,5 @@ pub fn get_error_status_test() {
   let client = test_client.client()
 
   assert quotes.get(client, "access-token", base_url <> "/quotes/1")
-    == Error(ApiError(status: 404, body: "not found"))
+    == Error(ApiError(status: 404, body: "not found", error: None, as_uri: None))
 }

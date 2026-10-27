@@ -7,7 +7,9 @@ import gleam/list
 import gleam/option.{None, Some}
 import gleam/string
 import http_digest_fields/content_digest
-import open_payments/error.{ApiError, DecodeError, TransportError}
+import open_payments/error.{
+  ApiError, DecodeError, InvalidClient, ServerError, TransportError,
+}
 import open_payments/request
 import support/mock_server
 import support/test_client
@@ -36,7 +38,7 @@ pub fn handle_response_error_status_test() {
   let resp = Ok(Response(status: 404, headers: [], body: "not found"))
 
   assert request.handle_response(resp)
-    == Error(ApiError(status: 404, body: "not found"))
+    == Error(ApiError(status: 404, body: "not found", error: None, as_uri: None))
 }
 
 pub fn handle_response_transport_error_test() {
@@ -65,7 +67,47 @@ pub fn send_unauthenticated_request_error_status_test() {
     mock_server.start(status: 404, headers: [], body: "not found")
 
   assert request.send_unauthenticated_request(base_url <> "/missing")
-    == Error(ApiError(status: 404, body: "not found"))
+    == Error(ApiError(status: 404, body: "not found", error: None, as_uri: None))
+}
+
+pub fn send_request_parses_error_and_www_authenticate_test() {
+  let body =
+    json.to_string(
+      json.object([
+        #(
+          "error",
+          json.object([
+            #("code", json.string("invalid_client")),
+            #("description", json.string("Unknown client")),
+          ]),
+        ),
+      ]),
+    )
+  let #(base_url, _subject) =
+    mock_server.start(
+      status: 401,
+      headers: [#("www-authenticate", "GNAP as_uri=\"https://auth.example/\"")],
+      body: body,
+    )
+  let client = test_client.client()
+
+  assert request.send_request(
+      client,
+      base_url <> "/resource",
+      http.Get,
+      None,
+      token: None,
+    )
+    == Error(ApiError(
+      status: 401,
+      body: body,
+      error: Some(ServerError(
+        code: InvalidClient,
+        description: Some("Unknown client"),
+        details: None,
+      )),
+      as_uri: Some("https://auth.example/"),
+    ))
 }
 
 pub fn send_unauthenticated_request_unreachable_test() {
@@ -200,7 +242,12 @@ pub fn send_request_error_status_test() {
       None,
       token: None,
     )
-    == Error(ApiError(status: 400, body: "bad request"))
+    == Error(ApiError(
+      status: 400,
+      body: "bad request",
+      error: None,
+      as_uri: None,
+    ))
 }
 
 pub fn send_request_unreachable_test() {
@@ -246,5 +293,5 @@ pub fn send_and_decode_error_status_test() {
       decoder: decode.string,
       error_context: "ctx",
     )
-    == Error(ApiError(status: 404, body: "not found"))
+    == Error(ApiError(status: 404, body: "not found", error: None, as_uri: None))
 }

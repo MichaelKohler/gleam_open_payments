@@ -150,7 +150,7 @@ pub fn get_error_status_test() {
     mock_server.start(status: 404, headers: [], body: "not found")
 
   assert wallet_address.get(base_url)
-    == Error(ApiError(status: 404, body: "not found"))
+    == Error(ApiError(status: 404, body: "not found", error: None, as_uri: None))
 }
 
 pub fn get_keys_success_test() {
@@ -169,5 +169,5 @@ pub fn get_keys_error_status_test() {
     mock_server.start(status: 404, headers: [], body: "not found")
 
   assert wallet_address.get_keys(base_url)
-    == Error(ApiError(status: 404, body: "not found"))
+    == Error(ApiError(status: 404, body: "not found", error: None, as_uri: None))
 }

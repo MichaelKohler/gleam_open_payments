@@ -15,9 +15,7 @@ import http_message_signatures/message
 import http_message_signatures/params.{SignatureParams}
 import http_message_signatures/signer
 import open_payments/client.{type Client}
-import open_payments/error.{
-  type OpenPaymentsError, ApiError, DecodeError, TransportError,
-}
+import open_payments/error.{type OpenPaymentsError, DecodeError, TransportError}
 
 const signature_max_age_seconds = 300
 
@@ -186,7 +184,12 @@ pub fn handle_response(
   case resp {
     Ok(resp) if resp.status == 200 || resp.status == 201 || resp.status == 204 ->
       Ok(resp.body)
-    Ok(resp) -> Error(ApiError(status: resp.status, body: resp.body))
+    Ok(resp) ->
+      Error(error.from_response(
+        status: resp.status,
+        body: resp.body,
+        www_authenticate: response.get_header(resp, "www-authenticate"),
+      ))
     Error(err) ->
       Error(TransportError("Request failed: " <> string.inspect(err)))
   }
