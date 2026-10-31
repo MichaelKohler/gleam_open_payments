@@ -1,6 +1,7 @@
 import gleam/json
 import gleam/list
 import gleam/option.{None, Some}
+import gleam/result
 import gleam/string
 import open_payments/error.{ApiError, ValidationError}
 import open_payments/incoming_payment.{
@@ -313,31 +314,52 @@ pub fn get_error_status_test() {
     == Error(ApiError(status: 404, body: "not found", error: None, as_uri: None))
 }
 
-pub fn decode_public_incoming_payment_test() {
-  let json_value =
+fn public_incoming_payment_json() -> String {
+  json.to_string(
     json.object([
+      #("id", json.string("https://resource.example/incoming-payments/1")),
+      #("completed", json.bool(False)),
+      #("incomingAmount", types.encode_amount(Amount("1000", "USD", 2))),
+      #("receivedAmount", types.encode_amount(Amount("500", "USD", 2))),
+      #("expiresAt", json.string("2024-01-01T00:05:00Z")),
+      #("createdAt", json.string("2024-01-01T00:00:00Z")),
       #("authServer", json.string("https://auth.example")),
       #(
-        "receivedAmount",
-        json.object([
-          #("value", json.string("500")),
-          #("assetCode", json.string("USD")),
-          #("assetScale", json.int(2)),
+        "methods",
+        json.preprocessed_array([
+          json.object([
+            #("type", json.string("ilp")),
+            #("ilpAddress", json.string("g.example.receiver")),
+            #("sharedSecret", json.string("shared-secret")),
+          ]),
         ]),
       ),
-    ])
-
-  assert json.parse(
-      json.to_string(json_value),
-      incoming_payment.decode_public_incoming_payment(),
-    )
-    == Ok(PublicIncomingPayment(
-      auth_server: "https://auth.example",
-      received_amount: Some(Amount("500", "USD", 2)),
-    ))
+    ]),
+  )
 }
 
-pub fn decode_public_incoming_payment_without_received_amount_test() {
+fn public_incoming_payment() -> incoming_payment.PublicIncomingPayment {
+  PublicIncomingPayment(
+    id: Some("https://resource.example/incoming-payments/1"),
+    completed: Some(False),
+    incoming_amount: Some(Amount("1000", "USD", 2)),
+    received_amount: Some(Amount("500", "USD", 2)),
+    expires_at: Some("2024-01-01T00:05:00Z"),
+    created_at: Some("2024-01-01T00:00:00Z"),
+    methods: [IlpPaymentMethod("g.example.receiver", "shared-secret")],
+    auth_server: "https://auth.example",
+  )
+}
+
+pub fn decode_public_incoming_payment_test() {
+  assert json.parse(
+      public_incoming_payment_json(),
+      incoming_payment.decode_public_incoming_payment(),
+    )
+    == Ok(public_incoming_payment())
+}
+
+pub fn decode_public_incoming_payment_without_optional_fields_test() {
   let json_value =
     json.object([#("authServer", json.string("https://auth.example"))])
 
@@ -346,9 +368,53 @@ pub fn decode_public_incoming_payment_without_received_amount_test() {
       incoming_payment.decode_public_incoming_payment(),
     )
     == Ok(PublicIncomingPayment(
-      auth_server: "https://auth.example",
+      id: None,
+      completed: None,
+      incoming_amount: None,
       received_amount: None,
+      expires_at: None,
+      created_at: None,
+      methods: [],
+      auth_server: "https://auth.example",
     ))
+}
+
+pub fn decode_public_incoming_payment_with_received_amount_only_test() {
+  // What resource servers send until they implement version 1.4.1 of the
+  // specification.
+  let json_value =
+    json.object([
+      #("authServer", json.string("https://auth.example")),
+      #("receivedAmount", types.encode_amount(Amount("500", "USD", 2))),
+    ])
+
+  assert json.parse(
+      json.to_string(json_value),
+      incoming_payment.decode_public_incoming_payment(),
+    )
+    == Ok(PublicIncomingPayment(
+      id: None,
+      completed: None,
+      incoming_amount: None,
+      received_amount: Some(Amount("500", "USD", 2)),
+      expires_at: None,
+      created_at: None,
+      methods: [],
+      auth_server: "https://auth.example",
+    ))
+}
+
+pub fn decode_public_incoming_payment_requires_auth_server_test() {
+  let json_value =
+    json.object([
+      #("receivedAmount", types.encode_amount(Amount("500", "USD", 2))),
+    ])
+
+  assert json.parse(
+      json.to_string(json_value),
+      incoming_payment.decode_public_incoming_payment(),
+    )
+    |> result.is_error
 }
 
 pub fn get_public_success_test() {
@@ -356,16 +422,11 @@ pub fn get_public_success_test() {
     mock_server.start(
       status: 200,
       headers: [],
-      body: json.to_string(
-        json.object([#("authServer", json.string("https://auth.example"))]),
-      ),
+      body: public_incoming_payment_json(),
     )
 
   assert incoming_payment.get_public(base_url <> "/incoming-payments/1")
-    == Ok(PublicIncomingPayment(
-      auth_server: "https://auth.example",
-      received_amount: None,
-    ))
+    == Ok(public_incoming_payment())
 
   let captured = mock_server.await_request(subject)
   assert captured.method == "GET"

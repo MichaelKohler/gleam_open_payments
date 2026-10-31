@@ -37,9 +37,23 @@ pub type IncomingPayment {
 /// The public view of an incoming payment, as returned by `get_public` to a
 /// client that doesn't hold an access token for it. `auth_server` is where a
 /// grant for the incoming payment can be requested.
+///
+/// Note: version 1.4.1 of the specification requires `id`, `completed`,
+/// `received_amount`, `created_at` and `methods`, but resource servers don't
+/// send most of these yet. They stay optional here until servers have caught
+/// up, and `methods` is empty when it's missing.
 /// See https://openpayments.dev/apis/resource-server/operations/get-incoming-payment/
 pub type PublicIncomingPayment {
-  PublicIncomingPayment(auth_server: String, received_amount: Option(Amount))
+  PublicIncomingPayment(
+    id: Option(String),
+    completed: Option(Bool),
+    incoming_amount: Option(Amount),
+    received_amount: Option(Amount),
+    expires_at: Option(String),
+    created_at: Option(String),
+    methods: List(IlpPaymentMethod),
+    auth_server: String,
+  )
 }
 
 /// A page of incoming payments, as returned by `list`.
@@ -132,15 +146,47 @@ pub fn decode_incoming_payment() -> decode.Decoder(IncomingPayment) {
 
 @internal
 pub fn decode_public_incoming_payment() -> decode.Decoder(PublicIncomingPayment) {
-  use auth_server <- decode.field("authServer", decode.string)
+  use id <- decode.optional_field("id", None, decode.string |> decode.map(Some))
+  use completed <- decode.optional_field(
+    "completed",
+    None,
+    decode.bool |> decode.map(Some),
+  )
+  use incoming_amount <- decode.optional_field(
+    "incomingAmount",
+    None,
+    decode_amount() |> decode.map(Some),
+  )
   use received_amount <- decode.optional_field(
     "receivedAmount",
     None,
     decode_amount() |> decode.map(Some),
   )
+  use expires_at <- decode.optional_field(
+    "expiresAt",
+    None,
+    decode.string |> decode.map(Some),
+  )
+  use created_at <- decode.optional_field(
+    "createdAt",
+    None,
+    decode.string |> decode.map(Some),
+  )
+  use methods <- decode.optional_field(
+    "methods",
+    [],
+    decode.list(decode_ilp_payment_method()),
+  )
+  use auth_server <- decode.field("authServer", decode.string)
   decode.success(PublicIncomingPayment(
-    auth_server: auth_server,
+    id: id,
+    completed: completed,
+    incoming_amount: incoming_amount,
     received_amount: received_amount,
+    expires_at: expires_at,
+    created_at: created_at,
+    methods: methods,
+    auth_server: auth_server,
   ))
 }
 

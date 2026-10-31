@@ -36,7 +36,7 @@ pub fn main() -> Nil {
       client_type: None,
       subject: None,
     )
-  let assert Ok(Grant(access_token: incoming_token, continue: _)) =
+  let assert Ok(Grant(access_token: incoming_token, ..)) =
     grants.request(client, incoming_grant_options)
 
   let incoming_payment_options =
@@ -66,6 +66,25 @@ pub fn main() -> Nil {
 Note that this example only creates an incoming payment, and no outgoing payment. Check the `test/sdk_example.gleam` file for a full end-to-end example.
 
 Further documentation can be found at <https://open-payments.hexdocs.pm/>.
+
+## Versioning
+
+The Open Payments specification still gains new response fields, so adding a
+field to a response type, such as `IncomingPayment`, is a minor version change
+and not a breaking one. Fields can be added anywhere in a type.
+
+To keep your code compiling across minor versions, read response fields by name
+(`payment.id`), or pattern match on just the fields you need, with labels and
+`..`:
+
+```gleam
+let IncomingPayment(id:, completed:, ..) = payment
+```
+
+A new field breaks positional patterns, patterns that list every field, and code
+that builds response types itself, so avoid these. Gleam doesn't allow `..` in a
+pattern that already lists every field, so if you need all of them, read them by
+name instead.
 
 ## Development
 
