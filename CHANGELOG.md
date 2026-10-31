@@ -5,7 +5,7 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [3.0.0] - 2026-10-31
 
 This release aligns the SDK with the Open Payments API specification (v1.4.1).
 
@@ -112,7 +112,7 @@ It contains breaking changes; see [Migrating from 1.x](#migrating-from-1x).
   incoming payments, outgoing payments, quotes and outgoing payment grant spent
   amounts, with signed requests.
 
-[Unreleased]: https://github.com/MichaelKohler/gleam_open_payments/compare/v2.0.0...HEAD
+[3.0.0]: https://github.com/MichaelKohler/gleam_open_payments/compare/v2.0.0...v3.0.0
 [2.0.0]: https://github.com/MichaelKohler/gleam_open_payments/compare/v1.0.1...v2.0.0
 [1.1.0]: https://github.com/MichaelKohler/gleam_open_payments/compare/v1.0.0...v1.1.0
 [1.0.0]: https://github.com/MichaelKohler/gleam_open_payments/releases/tag/v1.0.0
