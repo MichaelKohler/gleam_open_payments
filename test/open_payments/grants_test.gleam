@@ -5,9 +5,10 @@ import gleam/string
 import open_payments/error.{ApiError, TransportError, ValidationError}
 import open_payments/grants.{
   type GrantResponse, AccessTokenBodyProperty, Body, ClientDirectedIdentity,
-  ClientWalletAddressObject, ClientWalletAddressString, ContinueAccessToken,
-  ContinueResponse, Finish, FinishRedirect, Grant, Interact, InteractResponse,
-  PendingGrant, StartRedirect, Subject, SubjectId, SubjectIdFormatUri,
+  ClientDisplay, ClientWalletAddressObject, ClientWalletAddressString,
+  ContinueAccessToken, ContinueResponse, Finish, FinishRedirect, Grant, Interact,
+  InteractResponse, PendingGrant, StartRedirect, Subject, SubjectId,
+  SubjectIdFormatUri,
 }
 import open_payments/types.{
   type Access, AccessIncoming, AccessOutgoing, AccessQuote, AccessTokenResponse,
@@ -66,11 +67,72 @@ pub fn encode_key_test() {
     == "{\"kid\":\"key-1\",\"x\":\"value\",\"alg\":\"EdDSA\",\"kty\":\"OKP\",\"crv\":\"Ed25519\",\"use\":\"sig\"}"
 }
 
+pub fn encode_client_display_test() {
+  let client_display =
+    ClientDisplay(
+      name: Some("Some name"),
+      uri: Some("https://example.com"),
+      logo_uri: Some("https://example.com/icon.svg"),
+    )
+
+  assert json.to_string(grants.encode_client_display(client_display))
+    == "{\"name\":\"Some name\",\"uri\":\"https://example.com\",\"logo_uri\":\"https://example.com/icon.svg\"}"
+}
+
+pub fn encode_client_display_partial_test() {
+  let client_display =
+    ClientDisplay(name: Some("Some name"), uri: None, logo_uri: None)
+
+  assert json.to_string(grants.encode_client_display(client_display))
+    == "{\"name\":\"Some name\"}"
+}
+
 pub fn encode_client_wallet_address_test() {
-  let client = ClientWalletAddressObject("https://wallet.example/sender")
+  let client = ClientWalletAddressObject("https://wallet.example/sender", None)
 
   assert json.to_string(grants.encode_client(client))
     == "{\"walletAddress\":\"https://wallet.example/sender\"}"
+}
+
+pub fn encode_client_wallet_address_with_client_display_test() {
+  let client_display =
+    ClientDisplay(
+      name: Some("Some name"),
+      uri: Some("https://example.com"),
+      logo_uri: Some("https://example.com/icon.svg"),
+    )
+  let client =
+    ClientWalletAddressObject(
+      "https://wallet.example/sender",
+      Some(client_display),
+    )
+
+  assert json.to_string(grants.encode_client(client))
+    == "{"
+    <> "\"display\":{\"name\":\"Some name\",\"uri\":\"https://example.com\",\"logo_uri\":\"https://example.com/icon.svg\"},"
+    <> "\"walletAddress\":\"https://wallet.example/sender\""
+    <> "}"
+}
+
+pub fn encode_client_wallet_address_with_empty_client_display_test() {
+  let client_display = ClientDisplay(name: None, uri: None, logo_uri: None)
+  let client =
+    ClientWalletAddressObject(
+      "https://wallet.example/sender",
+      Some(client_display),
+    )
+
+  assert json.to_string(grants.encode_client(client))
+    == "{\"walletAddress\":\"https://wallet.example/sender\"}"
+}
+
+pub fn encode_client_directed_identity_with_empty_client_display_test() {
+  let key = Key(kid: "key-1", x: "value")
+  let client_display = ClientDisplay(name: None, uri: None, logo_uri: None)
+  let client = ClientDirectedIdentity(key, Some(client_display))
+
+  assert json.to_string(grants.encode_client(client))
+    == "{\"jwk\":" <> json.to_string(grants.encode_key(key)) <> "}"
 }
 
 pub fn encode_client_wallet_address_string_test() {
@@ -80,9 +142,26 @@ pub fn encode_client_wallet_address_string_test() {
     == "\"https://wallet.example/sender\""
 }
 
+pub fn encode_client_directed_identity_with_client_display_test() {
+  let key = Key(kid: "key-1", x: "value")
+  let client_display =
+    ClientDisplay(
+      name: Some("Some name"),
+      uri: Some("https://example.com"),
+      logo_uri: Some("https://example.com/icon.svg"),
+    )
+  let client = ClientDirectedIdentity(key, Some(client_display))
+
+  assert json.to_string(grants.encode_client(client))
+    == "{\"display\":{\"name\":\"Some name\",\"uri\":\"https://example.com\",\"logo_uri\":\"https://example.com/icon.svg\"},"
+    <> "\"jwk\":"
+    <> "{\"kid\":\"key-1\",\"x\":\"value\",\"alg\":\"EdDSA\",\"kty\":\"OKP\",\"crv\":\"Ed25519\",\"use\":\"sig\"}"
+    <> "}"
+}
+
 pub fn encode_client_directed_identity_test() {
   let key = Key(kid: "key-1", x: "value")
-  let client = ClientDirectedIdentity(key)
+  let client = ClientDirectedIdentity(key, None)
 
   assert json.to_string(grants.encode_client(client))
     == "{\"jwk\":" <> json.to_string(grants.encode_key(key)) <> "}"
@@ -92,7 +171,7 @@ pub fn encode_body_test() {
   let body =
     Body(
       access_token: Some(AccessTokenBodyProperty([AccessQuote([QuoteCreate])])),
-      client: ClientWalletAddressObject("https://wallet.example/sender"),
+      client: ClientWalletAddressObject("https://wallet.example/sender", None),
       interact: None,
       subject: None,
     )
@@ -105,7 +184,7 @@ pub fn encode_body_with_subject_test() {
   let body =
     Body(
       access_token: None,
-      client: ClientWalletAddressObject("https://wallet.example/sender"),
+      client: ClientWalletAddressObject("https://wallet.example/sender", None),
       interact: Some(Interact(start: [StartRedirect], finish: None)),
       subject: Some(SubjectId(
         id: "https://wallet.example/alice",
@@ -411,7 +490,7 @@ pub fn request_directed_identity_with_interact_test() {
       auth_server_url: "http://127.0.0.1:1/unreachable",
       access: [AccessQuote([QuoteCreate])],
       interact: Some(Interact(start: [StartRedirect], finish: None)),
-      client_type: Some(ClientDirectedIdentity(key)),
+      client_type: Some(ClientDirectedIdentity(key, None)),
       subject: None,
     )
 
@@ -440,7 +519,7 @@ pub fn request_directed_identity_without_interact_test() {
       auth_server_url: base_url,
       access: [AccessQuote([QuoteCreate])],
       interact: None,
-      client_type: Some(ClientDirectedIdentity(key)),
+      client_type: Some(ClientDirectedIdentity(key, None)),
       subject: None,
     )
 
@@ -450,6 +529,89 @@ pub fn request_directed_identity_without_interact_test() {
   assert string.contains(
     captured.body,
     "\"client\":{\"jwk\":" <> json.to_string(grants.encode_key(key)) <> "}",
+  )
+}
+
+pub fn request_directed_identity_with_client_display_test() {
+  let #(base_url, mock_subject) =
+    mock_server.start(
+      status: 200,
+      headers: [],
+      body: json.to_string(
+        json.object([
+          #("access_token", access_token_json()),
+          #("continue", continue_json()),
+        ]),
+      ),
+    )
+  let client = test_client.client()
+  let client_display =
+    ClientDisplay(name: Some("Some name"), uri: None, logo_uri: None)
+  let key = Key(kid: "key-1", x: "value")
+  let options =
+    grants.GrantOptions(
+      auth_server_url: base_url,
+      access: [AccessQuote([QuoteCreate])],
+      interact: None,
+      client_type: Some(ClientDirectedIdentity(key, Some(client_display))),
+      subject: None,
+    )
+
+  let assert Ok(_) = grants.request(client, options)
+  let captured = mock_server.await_request(mock_subject)
+
+  assert string.contains(
+    captured.body,
+    "\"client\":{\"display\":"
+      <> json.to_string(grants.encode_client_display(client_display)),
+  )
+
+  assert string.contains(
+    captured.body,
+    "\"jwk\":" <> json.to_string(grants.encode_key(key)),
+  )
+}
+
+pub fn request_wallet_address_with_client_display_test() {
+  let #(base_url, mock_subject) =
+    mock_server.start(
+      status: 200,
+      headers: [],
+      body: json.to_string(
+        json.object([
+          #("access_token", access_token_json()),
+          #("continue", continue_json()),
+        ]),
+      ),
+    )
+  let client = test_client.client()
+  let client_display =
+    ClientDisplay(
+      name: Some("Some name"),
+      uri: None,
+      logo_uri: Some("https://example.com/icon.svg"),
+    )
+  let options =
+    grants.GrantOptions(
+      auth_server_url: base_url,
+      access: [AccessQuote([QuoteCreate])],
+      interact: None,
+      client_type: Some(ClientWalletAddressObject(
+        "https://ilp.interledger-test.dev/michaelusd",
+        Some(client_display),
+      )),
+      subject: None,
+    )
+
+  let assert Ok(_) = grants.request(client, options)
+  let captured = mock_server.await_request(mock_subject)
+
+  assert string.contains(
+    captured.body,
+    "\"client\":{"
+      <> "\"display\":{\"name\":\"Some name\",\"logo_uri\":\"https://example.com/icon.svg\"},"
+      <> "\"walletAddress\":\"https://ilp.interledger-test.dev/michaelusd\""
+      <> "}",
   )
 }
 
