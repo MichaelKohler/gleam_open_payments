@@ -98,7 +98,7 @@ pub type Subject {
 /// defaults to identifying the client by its own wallet address
 /// (`ClientWalletAddressObject`, sent as `{"walletAddress": ...}`) when
 /// left as `None`; pass
-/// `Some(ClientDirectedIdentity(key))` to identify the client by its public
+/// `Some(ClientDirectedIdentity(key, None))` to identify the client by its public
 /// key instead, which is only allowed without `interact`: `request` returns
 /// a `ValidationError` otherwise. `subject` requests information about a subject (e.g. to
 /// confirm wallet address ownership) rather than, or alongside, an access
@@ -238,12 +238,24 @@ pub fn encode_client_display(display: ClientDisplay) -> Json {
   |> json.object
 }
 
-/// A display with no fields set tells the auth server nothing, so it is left
-/// out of the request rather than sent as an empty `{}` object.
+/// Empty-string fields are dropped, and a display left with no fields set
+/// tells the auth server nothing, so it is left out of the request rather
+/// than sent as an empty `{}` object.
 fn non_empty_display(display: Option(ClientDisplay)) -> Option(ClientDisplay) {
   case display {
-    Some(ClientDisplay(name: None, uri: None, logo_uri: None)) -> None
-    Some(_) | None -> display
+    None -> None
+    Some(ClientDisplay(name:, uri:, logo_uri:)) ->
+      case non_empty(name), non_empty(uri), non_empty(logo_uri) {
+        None, None, None -> None
+        name, uri, logo_uri -> Some(ClientDisplay(name:, uri:, logo_uri:))
+      }
+  }
+}
+
+fn non_empty(value: Option(String)) -> Option(String) {
+  case value {
+    Some("") -> None
+    Some(_) | None -> value
   }
 }
 

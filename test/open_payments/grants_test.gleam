@@ -126,6 +126,35 @@ pub fn encode_client_wallet_address_with_empty_client_display_test() {
     == "{\"walletAddress\":\"https://wallet.example/sender\"}"
 }
 
+pub fn encode_client_wallet_address_with_blank_client_display_test() {
+  let client_display =
+    ClientDisplay(name: Some(""), uri: Some(""), logo_uri: Some(""))
+  let client =
+    ClientWalletAddressObject(
+      "https://wallet.example/sender",
+      Some(client_display),
+    )
+
+  assert json.to_string(grants.encode_client(client))
+    == "{\"walletAddress\":\"https://wallet.example/sender\"}"
+}
+
+pub fn encode_client_wallet_address_with_partially_blank_client_display_test() {
+  let client_display =
+    ClientDisplay(name: Some("Some name"), uri: Some(""), logo_uri: None)
+  let client =
+    ClientWalletAddressObject(
+      "https://wallet.example/sender",
+      Some(client_display),
+    )
+
+  assert json.to_string(grants.encode_client(client))
+    == "{"
+    <> "\"display\":{\"name\":\"Some name\"},"
+    <> "\"walletAddress\":\"https://wallet.example/sender\""
+    <> "}"
+}
+
 pub fn encode_client_directed_identity_with_empty_client_display_test() {
   let key = Key(kid: "key-1", x: "value")
   let client_display = ClientDisplay(name: None, uri: None, logo_uri: None)
