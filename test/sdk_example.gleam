@@ -316,7 +316,7 @@ fn request_incoming_payment_grant_with_key(
       auth_server_url: receiver_address_info.auth_server,
       access: [access],
       interact: None,
-      client_type: Some(ClientDirectedIdentity(key)),
+      client_type: Some(ClientDirectedIdentity(key, None)),
       subject: None,
     )
 

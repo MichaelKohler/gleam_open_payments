@@ -47,13 +47,29 @@ pub type Interact {
 /// the auth server can look up.
 pub type ClientType {
   /// Sent as `{"jwk": ...}`. Only usable for non-interactive grants.
-  ClientDirectedIdentity(jwk: Key)
+  ClientDirectedIdentity(jwk: Key, display: Option(ClientDisplay))
   /// Sent as `{"walletAddress": ...}`.
-  ClientWalletAddressObject(wallet_address: String)
+  ClientWalletAddressObject(
+    wallet_address: String,
+    display: Option(ClientDisplay),
+  )
   /// Sent as a bare wallet address string. Deprecated by the Open Payments
   /// spec in favour of `ClientWalletAddressObject`; only use it for auth
   /// servers that don't yet accept the object form.
   ClientWalletAddressString(wallet_address: String)
+}
+
+/// Information about the client instance that the auth server shows to the
+/// resource owner during interaction. Every field is optional. It is supplied
+/// by the client and not checked by the auth server. If an interactive grant
+/// request leaves it out, the auth server gets it from the client's wallet
+/// address.
+pub type ClientDisplay {
+  ClientDisplay(
+    name: Option(String),
+    uri: Option(String),
+    logo_uri: Option(String),
+  )
 }
 
 /// Currently the Open Payments spec only defines `"uri"`.
@@ -214,11 +230,42 @@ pub fn encode_key(key: Key) -> Json {
 }
 
 @internal
+pub fn encode_client_display(display: ClientDisplay) -> Json {
+  []
+  |> optional_field("logo_uri", display.logo_uri, json.string)
+  |> optional_field("uri", display.uri, json.string)
+  |> optional_field("name", display.name, json.string)
+  |> json.object
+}
+
+/// A display with no fields set tells the auth server nothing, so it is left
+/// out of the request rather than sent as an empty `{}` object.
+fn non_empty_display(display: Option(ClientDisplay)) -> Option(ClientDisplay) {
+  case display {
+    Some(ClientDisplay(name: None, uri: None, logo_uri: None)) -> None
+    Some(_) | None -> display
+  }
+}
+
+@internal
 pub fn encode_client(client: ClientType) -> Json {
   case client {
-    ClientDirectedIdentity(jwk) -> json.object([#("jwk", encode_key(jwk))])
-    ClientWalletAddressObject(wallet_address) ->
-      json.object([#("walletAddress", json.string(wallet_address))])
+    ClientDirectedIdentity(jwk:, display:) ->
+      [#("jwk", encode_key(jwk))]
+      |> optional_field(
+        "display",
+        non_empty_display(display),
+        encode_client_display,
+      )
+      |> json.object
+    ClientWalletAddressObject(wallet_address:, display:) ->
+      [#("walletAddress", json.string(wallet_address))]
+      |> optional_field(
+        "display",
+        non_empty_display(display),
+        encode_client_display,
+      )
+      |> json.object
     ClientWalletAddressString(wallet_address) -> json.string(wallet_address)
   }
 }
@@ -303,7 +350,7 @@ pub fn request(
   let url = options.auth_server_url
   let client_type = case options.client_type {
     Some(client_type) -> client_type
-    None -> ClientWalletAddressObject(client.wallet_address_url)
+    None -> ClientWalletAddressObject(client.wallet_address_url, None)
   }
   let access_token = case options.access {
     [] -> None
@@ -334,7 +381,7 @@ pub fn request(
 fn validate_options(options: GrantOptions) -> Result(Nil, OpenPaymentsError) {
   use Nil <- result.try(
     case options.client_type, options.interact, options.subject {
-      Some(ClientDirectedIdentity(_)), Some(_), _ ->
+      Some(ClientDirectedIdentity(..)), Some(_), _ ->
         Error(ValidationError(
           "A directed identity (jwk) client can only be used for non-interactive grants",
         ))
