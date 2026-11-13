@@ -126,7 +126,7 @@ pub fn parse_as_uri(www_authenticate: String) -> Option(String) {
       case string.lowercase(scheme) {
         "gnap" ->
           params
-          |> string.split(",")
+          |> split_params
           |> list.find_map(fn(param) {
             case string.split_once(string.trim(param), "=") {
               Ok(#(name, value)) ->
@@ -141,6 +141,32 @@ pub fn parse_as_uri(www_authenticate: String) -> Option(String) {
         _ -> None
       }
     Error(Nil) -> None
+  }
+}
+
+/// Splits a header's auth parameters on the commas between them. Commas
+/// inside a quoted value, such as a URI with a comma in it, are kept, and a
+/// backslash-escaped character inside quotes never ends the quoted value.
+fn split_params(params: String) -> List(String) {
+  split_params_loop(string.to_graphemes(params), False, "", [])
+}
+
+fn split_params_loop(
+  chars: List(String),
+  in_quotes: Bool,
+  current: String,
+  params: List(String),
+) -> List(String) {
+  case chars, in_quotes {
+    [], _ -> list.reverse([current, ..params])
+    ["\\", escaped, ..rest], True ->
+      split_params_loop(rest, True, current <> "\\" <> escaped, params)
+    ["\"", ..rest], _ ->
+      split_params_loop(rest, !in_quotes, current <> "\"", params)
+    [",", ..rest], False ->
+      split_params_loop(rest, False, "", [current, ..params])
+    [char, ..rest], _ ->
+      split_params_loop(rest, in_quotes, current <> char, params)
   }
 }
 

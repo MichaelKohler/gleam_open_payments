@@ -23,6 +23,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   what is wrong with the response as sent. Before, a malformed approved grant
   was reported as missing `interact`, because it was first tried as a pending
   grant.
+- `ApiError`'s `as_uri` is no longer cut short when the quoted `as_uri` in a
+  `WWW-Authenticate` header contains a comma.
 
 ## [4.0.0] - 2026-11-11
 

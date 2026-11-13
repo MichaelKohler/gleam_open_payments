@@ -92,6 +92,27 @@ pub fn parse_as_uri_with_other_params_test() {
     == Some("https://auth.example/")
 }
 
+pub fn parse_as_uri_with_comma_in_quoted_value_test() {
+  assert error.parse_as_uri(
+      "GNAP as_uri=\"https://auth.example/a,b\", realm=\"rs\"",
+    )
+    == Some("https://auth.example/a,b")
+}
+
+pub fn parse_as_uri_after_quoted_param_with_comma_test() {
+  assert error.parse_as_uri(
+      "GNAP realm=\"rs, eu\", as_uri=\"https://auth.example/\"",
+    )
+    == Some("https://auth.example/")
+}
+
+pub fn parse_as_uri_after_escaped_quote_test() {
+  assert error.parse_as_uri(
+      "GNAP realm=\"say \\\"hi\\\", there\", as_uri=\"https://auth.example/\"",
+    )
+    == Some("https://auth.example/")
+}
+
 pub fn parse_as_uri_other_scheme_test() {
   assert error.parse_as_uri("Bearer as_uri=\"https://auth.example/\"") == None
 }
