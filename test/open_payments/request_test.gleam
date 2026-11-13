@@ -6,12 +6,20 @@ import gleam/json
 import gleam/list
 import gleam/option.{None, Some}
 import gleam/string
+import gleam/time/timestamp
 import http_digest_fields/content_digest
+import http_message_signatures/component.{
+  type ComponentIdentifier, Derived, Field, Method, TargetUri,
+}
+import http_message_signatures/keys
+import http_message_signatures/message
+import http_message_signatures/verifier.{type VerifyError, VerifyPolicy}
 import open_payments/error.{
   ApiError, DecodeError, InvalidClient, ServerError, TransportError,
 }
 import open_payments/request
-import support/mock_server
+import simplifile
+import support/mock_server.{type CapturedRequest}
 import support/test_client
 
 const unreachable_url = "http://127.0.0.1:1/unreachable"
@@ -307,4 +315,123 @@ pub fn send_and_decode_error_status_test() {
       error_context: "ctx",
     )
     == Error(ApiError(status: 404, body: "not found", error: None, as_uri: None))
+}
+
+/// Verifies the signature on a request captured by the mock server with the
+/// public key matching the test client's private key, the way an Open
+/// Payments server would. `required` lists the components the signature
+/// must cover.
+fn verify_signature(
+  base_url: String,
+  captured: CapturedRequest,
+  required: List(ComponentIdentifier),
+) -> Result(Nil, VerifyError) {
+  let assert Ok(pem) = simplifile.read("test/fixtures/private_key")
+  let assert Ok(#(_private_key, public_key)) = keys.key_pair_from_pem(pem)
+  let assert Ok(signature_input) =
+    list.key_find(captured.headers, "signature-input")
+  let assert Ok(signature) = list.key_find(captured.headers, "signature")
+  let assert Ok(signature_params) =
+    verifier.parse(signature_input_header: signature_input, label: "sig1")
+  let #(now, _nanoseconds) =
+    timestamp.system_time() |> timestamp.to_unix_seconds_and_nanoseconds
+
+  verifier.verify(
+    message: message.Request(
+      captured.method,
+      base_url <> captured.path,
+      captured.headers,
+    ),
+    public_key: public_key,
+    signature_params: signature_params,
+    signature_header: signature,
+    label: "sig1",
+    policy: VerifyPolicy(
+      required_components: required,
+      now: now,
+      max_age_seconds: None,
+    ),
+  )
+}
+
+pub fn send_request_signature_verifies_test() {
+  let #(base_url, subject) =
+    mock_server.start(status: 200, headers: [], body: "")
+  let client = test_client.client()
+
+  let assert Ok(_) =
+    request.send_request(
+      client,
+      base_url <> "/resource?wallet-address=abc",
+      http.Get,
+      None,
+      token: None,
+    )
+
+  let captured = mock_server.await_request(subject)
+
+  assert verify_signature(base_url, captured, [
+      Derived(Method),
+      Derived(TargetUri),
+    ])
+    == Ok(Nil)
+}
+
+pub fn send_request_signature_with_body_and_token_verifies_test() {
+  let #(base_url, subject) =
+    mock_server.start(status: 201, headers: [], body: "")
+  let client = test_client.client()
+  let body = json.object([#("hello", json.string("world"))])
+
+  let assert Ok(_) =
+    request.send_request(
+      client,
+      base_url <> "/resource",
+      http.Post,
+      Some(body),
+      token: Some("secret-token"),
+    )
+
+  let captured = mock_server.await_request(subject)
+
+  assert verify_signature(base_url, captured, [
+      Derived(Method),
+      Derived(TargetUri),
+      Field("content-digest"),
+      Field("authorization"),
+    ])
+    == Ok(Nil)
+}
+
+pub fn send_request_signature_rejects_tampered_request_test() {
+  let #(base_url, subject) =
+    mock_server.start(status: 200, headers: [], body: "")
+  let client = test_client.client()
+
+  let assert Ok(_) =
+    request.send_request(
+      client,
+      base_url <> "/resource",
+      http.Get,
+      None,
+      token: Some("secret-token"),
+    )
+
+  let captured = mock_server.await_request(subject)
+  let tampered =
+    mock_server.CapturedRequest(
+      ..captured,
+      headers: list.key_set(
+        captured.headers,
+        "authorization",
+        "GNAP other-token",
+      ),
+    )
+
+  assert verify_signature(base_url, tampered, [
+      Derived(Method),
+      Derived(TargetUri),
+      Field("authorization"),
+    ])
+    == Error(verifier.InvalidSignature)
 }
