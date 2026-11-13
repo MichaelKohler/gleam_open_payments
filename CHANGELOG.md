@@ -13,6 +13,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   when `methods` lists a payment method other than ILP. Such entries are
   skipped, and `methods` keeps only the ILP ones. An entry without a `type`
   is still read as ILP.
+- Every 2xx response is now treated as a success. Before, only 200, 201 and
+  204 were, so a server answering with another 2xx status, such as 202,
+  caused an `ApiError`.
 
 ## [4.0.0] - 2026-11-11
 

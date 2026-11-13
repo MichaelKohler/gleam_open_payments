@@ -181,13 +181,14 @@ pub fn send_and_decode(
   })
 }
 
+/// Returns the body of any 2xx response, and turns every other status into
+/// an `ApiError`.
 @internal
 pub fn handle_response(
   resp: Result(Response(String), httpc.HttpError),
 ) -> Result(String, OpenPaymentsError) {
   case resp {
-    Ok(resp) if resp.status == 200 || resp.status == 201 || resp.status == 204 ->
-      Ok(resp.body)
+    Ok(resp) if resp.status >= 200 && resp.status < 300 -> Ok(resp.body)
     Ok(resp) ->
       Error(error.from_response(
         status: resp.status,

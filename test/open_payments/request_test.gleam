@@ -34,6 +34,19 @@ pub fn handle_response_no_content_test() {
   assert request.handle_response(resp) == Ok("")
 }
 
+pub fn handle_response_accepted_test() {
+  let resp = Ok(Response(status: 202, headers: [], body: "accepted"))
+
+  assert request.handle_response(resp) == Ok("accepted")
+}
+
+pub fn handle_response_redirect_status_test() {
+  let resp = Ok(Response(status: 302, headers: [], body: ""))
+
+  assert request.handle_response(resp)
+    == Error(ApiError(status: 302, body: "", error: None, as_uri: None))
+}
+
 pub fn handle_response_error_status_test() {
   let resp = Ok(Response(status: 404, headers: [], body: "not found"))
 
