@@ -145,7 +145,7 @@ pub type ContinueAccessToken {
 }
 
 /// Where and how to continue a grant, and how long to wait before polling
-/// again.
+/// again. `wait` is in seconds.
 pub type ContinueResponse {
   ContinueResponse(
     access_token: ContinueAccessToken,
