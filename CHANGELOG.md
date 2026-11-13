@@ -16,6 +16,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Every 2xx response is now treated as a success. Before, only 200, 201 and
   204 were, so a server answering with another 2xx status, such as 202,
   caused an `ApiError`.
+- A resource server, wallet address or incoming payment URL that ends in a
+  `/` no longer produces a `//` in request paths, such as
+  `https://resource.example//quotes`.
 
 ## [4.0.0] - 2026-11-11
 

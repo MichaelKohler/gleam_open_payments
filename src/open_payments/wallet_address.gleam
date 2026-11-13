@@ -2,7 +2,7 @@ import gleam/dynamic/decode
 import gleam/option.{type Option, None, Some}
 import open_payments/error.{type OpenPaymentsError}
 import open_payments/request
-import open_payments/types.{type Key, Key}
+import open_payments/types.{type Key, Key, join_url}
 
 /// The public details of a wallet address, as returned by `get`.
 /// See https://openpayments.dev/apis/wallet-address-server/operations/get-wallet-address/
@@ -88,7 +88,7 @@ pub fn get(address: String) -> Result(WalletInfo, OpenPaymentsError) {
 /// returned; any other keys in the set are skipped.
 /// See https://openpayments.dev/apis/wallet-address-server/operations/get-wallet-address-keys/
 pub fn get_keys(address: String) -> Result(List(Key), OpenPaymentsError) {
-  let url = address <> "/jwks.json"
+  let url = join_url(address, "/jwks.json")
 
   request.send_unauthenticated_and_decode(
     url,

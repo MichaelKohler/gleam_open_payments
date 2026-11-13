@@ -11,7 +11,7 @@ import open_payments/error.{type OpenPaymentsError}
 import open_payments/request
 import open_payments/types.{
   type Amount, type PageInfo, add_query, decode_amount, decode_page_info,
-  encode_amount, optional_field, validate_pagination,
+  encode_amount, join_url, optional_field, validate_pagination,
 }
 
 /// The ILP details a sender uses to pay into an incoming payment.
@@ -221,7 +221,7 @@ pub fn create(
   access_token: String,
   options: CreateOptions,
 ) -> Result(IncomingPayment, OpenPaymentsError) {
-  let url = options.resource_server <> "/incoming-payments"
+  let url = join_url(options.resource_server, "/incoming-payments")
   let body = encode_create_body(options)
 
   request.send_and_decode(
@@ -254,8 +254,8 @@ pub fn list(
     |> add_query("last", options.last, int.to_string)
 
   let url =
-    options.resource_server
-    <> "/incoming-payments?"
+    join_url(options.resource_server, "/incoming-payments")
+    <> "?"
     <> uri.query_to_string(query)
 
   request.send_and_decode(
@@ -312,7 +312,7 @@ pub fn complete(
   access_token: String,
   id: String,
 ) -> Result(IncomingPayment, OpenPaymentsError) {
-  let url = id <> "/complete"
+  let url = join_url(id, "/complete")
 
   request.send_and_decode(
     client,

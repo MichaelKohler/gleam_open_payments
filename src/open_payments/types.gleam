@@ -2,6 +2,7 @@ import gleam/dynamic/decode
 import gleam/int
 import gleam/json.{type Json}
 import gleam/option.{type Option, None, Some}
+import gleam/string
 import open_payments/error.{type OpenPaymentsError, ValidationError}
 
 /// The page size bounds for `first` and `last`, per the Open Payments spec.
@@ -157,6 +158,17 @@ pub fn add_query(
   case value {
     Some(v) -> [#(name, encode(v)), ..query]
     None -> query
+  }
+}
+
+/// Appends `path`, which starts with `/`, to `base`, dropping any trailing
+/// slashes from `base` first. Servers may return their URLs with a trailing
+/// slash, and joining those as-is would produce a `//` in the path.
+@internal
+pub fn join_url(base: String, path: String) -> String {
+  case string.ends_with(base, "/") {
+    True -> join_url(string.drop_end(base, 1), path)
+    False -> base <> path
   }
 }
 

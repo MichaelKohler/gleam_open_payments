@@ -11,7 +11,7 @@ import open_payments/error.{type OpenPaymentsError}
 import open_payments/request
 import open_payments/types.{
   type Amount, type PageInfo, add_query, decode_amount, decode_page_info,
-  encode_amount, optional_field, validate_pagination,
+  encode_amount, join_url, optional_field, validate_pagination,
 }
 
 /// See https://openpayments.dev/apis/resource-server/operations/get-outgoing-payment/
@@ -172,7 +172,7 @@ pub fn create(
   access_token: String,
   options: CreateOptions,
 ) -> Result(OutgoingPayment, OpenPaymentsError) {
-  let url = options.resource_server <> "/outgoing-payments"
+  let url = join_url(options.resource_server, "/outgoing-payments")
   let body = encode_create_body(options)
 
   request.send_and_decode(
@@ -205,8 +205,8 @@ pub fn list(
     |> add_query("last", options.last, int.to_string)
 
   let url =
-    options.resource_server
-    <> "/outgoing-payments?"
+    join_url(options.resource_server, "/outgoing-payments")
+    <> "?"
     <> uri.query_to_string(query)
 
   request.send_and_decode(
@@ -247,7 +247,7 @@ pub fn get_grant_spent_amounts(
   access_token: String,
   resource_server: String,
 ) -> Result(GrantSpentAmounts, OpenPaymentsError) {
-  let url = resource_server <> "/outgoing-payment-grant"
+  let url = join_url(resource_server, "/outgoing-payment-grant")
 
   request.send_and_decode(
     client,

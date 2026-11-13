@@ -129,6 +129,25 @@ pub fn create_success_test() {
   assert captured.body == json.to_string(quotes.encode_create_body(options))
 }
 
+pub fn create_resource_server_trailing_slash_test() {
+  let #(base_url, subject) =
+    mock_server.start(status: 201, headers: [], body: quote_json())
+  let client = test_client.client()
+  let options =
+    CreateOptions(
+      resource_server: base_url <> "/",
+      wallet_address: "https://wallet.example/sender",
+      receiver: "https://resource.example/incoming-payments/1",
+      method: Ilp,
+      amount: DebitAmount(Amount("500", "USD", 2)),
+    )
+
+  let assert Ok(_) = quotes.create(client, "access-token", options)
+  let captured = mock_server.await_request(subject)
+
+  assert captured.path == "/quotes"
+}
+
 pub fn create_error_status_test() {
   let #(base_url, _subject) =
     mock_server.start(status: 404, headers: [], body: "not found")

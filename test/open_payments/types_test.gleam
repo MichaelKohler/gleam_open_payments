@@ -74,6 +74,21 @@ pub fn optional_field_some_test() {
     == [#("name", json.string("value"))]
 }
 
+pub fn join_url_test() {
+  assert types.join_url("https://resource.example", "/quotes")
+    == "https://resource.example/quotes"
+}
+
+pub fn join_url_trailing_slash_test() {
+  assert types.join_url("https://resource.example/", "/quotes")
+    == "https://resource.example/quotes"
+}
+
+pub fn join_url_multiple_trailing_slashes_test() {
+  assert types.join_url("https://resource.example//", "/quotes")
+    == "https://resource.example/quotes"
+}
+
 pub fn add_query_none_test() {
   assert types.add_query([], "cursor", None, fn(v) { v }) == []
 }
