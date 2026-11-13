@@ -57,6 +57,56 @@ pub fn decode_ilp_payment_method_test() {
     ))
 }
 
+pub fn decode_ilp_payment_methods_skips_other_types_test() {
+  let json_value =
+    json.preprocessed_array([
+      json.object([
+        #("type", json.string("other")),
+        #("account", json.string("12345")),
+      ]),
+      json.object([
+        #("type", json.string("ilp")),
+        #("ilpAddress", json.string("g.example.receiver")),
+        #("sharedSecret", json.string("shared-secret")),
+      ]),
+      json.object([
+        #("ilpAddress", json.string("g.example.untyped")),
+        #("sharedSecret", json.string("untyped-secret")),
+      ]),
+    ])
+
+  assert json.parse(
+      json.to_string(json_value),
+      incoming_payment.decode_ilp_payment_methods(),
+    )
+    == Ok([
+      IlpPaymentMethod(
+        ilp_address: "g.example.receiver",
+        shared_secret: "shared-secret",
+      ),
+      IlpPaymentMethod(
+        ilp_address: "g.example.untyped",
+        shared_secret: "untyped-secret",
+      ),
+    ])
+}
+
+pub fn decode_ilp_payment_methods_rejects_malformed_ilp_test() {
+  let json_value =
+    json.preprocessed_array([
+      json.object([
+        #("type", json.string("ilp")),
+        #("ilpAddress", json.string("g.example.receiver")),
+      ]),
+    ])
+
+  let assert Error(_) =
+    json.parse(
+      json.to_string(json_value),
+      incoming_payment.decode_ilp_payment_methods(),
+    )
+}
+
 pub fn decode_incoming_payment_test() {
   let json_value =
     json.object([

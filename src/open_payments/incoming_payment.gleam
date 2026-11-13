@@ -104,6 +104,23 @@ pub fn decode_ilp_payment_method() -> decode.Decoder(IlpPaymentMethod) {
   ))
 }
 
+/// Decodes an incoming payment's `methods`, keeping only the ILP ones. An
+/// entry with another `type` is skipped rather than failing the whole
+/// payment, so a server that offers further payment methods still yields its
+/// ILP details. An entry without a `type` is read as ILP.
+@internal
+pub fn decode_ilp_payment_methods() -> decode.Decoder(List(IlpPaymentMethod)) {
+  let method = {
+    use kind <- decode.optional_field("type", "ilp", decode.string)
+    case kind {
+      "ilp" -> decode_ilp_payment_method() |> decode.map(Some)
+      _ -> decode.success(None)
+    }
+  }
+
+  decode.list(method) |> decode.map(option.values)
+}
+
 @internal
 pub fn decode_incoming_payment() -> decode.Decoder(IncomingPayment) {
   use id <- decode.field("id", decode.string)
@@ -129,7 +146,7 @@ pub fn decode_incoming_payment() -> decode.Decoder(IncomingPayment) {
   use methods <- decode.optional_field(
     "methods",
     [],
-    decode.list(decode_ilp_payment_method()),
+    decode_ilp_payment_methods(),
   )
   decode.success(IncomingPayment(
     id: id,
@@ -175,7 +192,7 @@ pub fn decode_public_incoming_payment() -> decode.Decoder(PublicIncomingPayment)
   use methods <- decode.optional_field(
     "methods",
     [],
-    decode.list(decode_ilp_payment_method()),
+    decode_ilp_payment_methods(),
   )
   use auth_server <- decode.field("authServer", decode.string)
   decode.success(PublicIncomingPayment(
