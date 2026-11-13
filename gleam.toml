@@ -1,5 +1,5 @@
 name = "open_payments"
-version = "4.0.0"
+version = "4.1.0"
 
 description = "Open Payments SDK for Gleam"
 licences = ["Apache-2.0"]
