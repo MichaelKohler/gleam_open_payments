@@ -37,7 +37,7 @@ pub fn main() -> Nil {
   let assert Ok(client) =
     client.create(
       wallet_address_url: "https://ilp.interledger-test.dev/michaelusd",
-      key_id: "be52ffa9-b61b-4a8c-8dbe-43b75cda31c9",
+      key_id: "45b9f311-9e5d-4a5e-bddb-4dfd683cb76f",
       private_key_path: "fixtures/private_key",
     )
   let sender_address = "https://ilp.interledger-test.dev/michaelusd"
