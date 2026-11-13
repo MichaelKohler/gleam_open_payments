@@ -344,9 +344,21 @@ pub fn decode_grant() -> decode.Decoder(GrantResponse) {
   decode.success(Grant(access_token: access_token, continue: continue))
 }
 
+/// Decodes a grant response as a `PendingGrant` when it has an `interact`
+/// field, and as a `Grant` otherwise. Picking the shape up front, rather than
+/// trying one and falling back to the other, means a malformed response
+/// reports what is wrong with the shape it actually has.
 @internal
 pub fn decode_grant_response() -> decode.Decoder(GrantResponse) {
-  decode.one_of(decode_pending_grant(), or: [decode_grant()])
+  use has_interact <- decode.optional_field(
+    "interact",
+    False,
+    decode.success(True),
+  )
+  case has_interact {
+    True -> decode_pending_grant()
+    False -> decode_grant()
+  }
 }
 
 /// Requests a grant from the auth server for the given access. Pass more

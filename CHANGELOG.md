@@ -19,6 +19,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - A resource server, wallet address or incoming payment URL that ends in a
   `/` no longer produces a `//` in request paths, such as
   `https://resource.example//quotes`.
+- When a grant response can't be decoded, the `DecodeError` now describes
+  what is wrong with the response as sent. Before, a malformed approved grant
+  was reported as missing `interact`, because it was first tried as a pending
+  grant.
 
 ## [4.0.0] - 2026-11-11
 

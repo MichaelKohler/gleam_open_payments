@@ -1,3 +1,4 @@
+import gleam/dynamic/decode
 import gleam/json
 import gleam/list
 import gleam/option.{None, Some}
@@ -311,6 +312,37 @@ pub fn decode_grant_response_pending_test() {
         wait: None,
       ),
     ))
+}
+
+pub fn decode_grant_response_malformed_pending_test() {
+  let json_value =
+    json.object([
+      #("interact", json.object([])),
+      #("continue", continue_json()),
+    ])
+
+  assert json.parse(json.to_string(json_value), grants.decode_grant_response())
+    == Error(
+      json.UnableToDecode([
+        decode.DecodeError(expected: "Field", found: "Nothing", path: [
+          "interact",
+          "redirect",
+        ]),
+      ]),
+    )
+}
+
+pub fn decode_grant_response_malformed_grant_test() {
+  let json_value =
+    json.object([
+      #("access_token", json.object([#("value", json.string("token-value"))])),
+      #("continue", continue_json()),
+    ])
+
+  let assert Error(json.UnableToDecode([
+    decode.DecodeError(path: ["access_token", "manage"], ..),
+    ..
+  ])) = json.parse(json.to_string(json_value), grants.decode_grant_response())
 }
 
 pub fn decode_grant_response_grant_test() {
