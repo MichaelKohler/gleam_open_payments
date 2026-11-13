@@ -65,6 +65,20 @@ pub fn main() -> Nil {
 
 Note that this example only creates an incoming payment, and no outgoing payment. Check the `test/sdk_example.gleam` file for a full end-to-end example.
 
+`client.create` reads the private key from a file. To keep the key out of
+the file system, use `client.create_from_env` to read the PEM from an
+environment variable, or `client.create_from_pem` to pass the PEM string
+directly:
+
+```gleam
+let assert Ok(client) =
+  client.create_from_env(
+    wallet_address_url: "https://ilp.interledger-test.dev/michaelusd",
+    key_id: "be52ffa9-b61b-4a8c-8dbe-43b75cda31c9",
+    private_key_env_var: "OPEN_PAYMENTS_PRIVATE_KEY",
+  )
+```
+
 Further documentation can be found at <https://open-payments.hexdocs.pm/>.
 
 ## Versioning

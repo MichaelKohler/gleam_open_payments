@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- `client.create_from_env` creates a `Client` from a PEM private key held in
+  an environment variable, and `client.create_from_pem` from a PEM string,
+  so the key no longer has to be stored in a file.
+
 ### Fixed
 
 - Incoming payments and public incoming payments no longer fail to decode
