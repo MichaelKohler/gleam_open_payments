@@ -4,9 +4,10 @@ import gleam/json.{type Json}
 import gleam/option.{type Option, None, Some}
 import open_payments/client.{type Client}
 import open_payments/error.{type OpenPaymentsError}
+import open_payments/internal.{join_url}
 import open_payments/request
 import open_payments/types.{
-  type Amount, type AmountOption, add_amount_option, decode_amount, join_url,
+  type Amount, type AmountOption, add_amount_option, decode_amount,
 }
 
 /// The payment method a quote is for.

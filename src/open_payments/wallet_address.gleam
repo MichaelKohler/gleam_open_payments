@@ -1,8 +1,9 @@
 import gleam/dynamic/decode
 import gleam/option.{type Option, None, Some}
 import open_payments/error.{type OpenPaymentsError}
+import open_payments/internal.{join_url}
 import open_payments/request
-import open_payments/types.{type Key, Key, join_url}
+import open_payments/types.{type Key, Key}
 
 /// The public details of a wallet address, as returned by `get`.
 /// See https://openpayments.dev/apis/wallet-address-server/operations/get-wallet-address/

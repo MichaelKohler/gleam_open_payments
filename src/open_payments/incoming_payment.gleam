@@ -8,10 +8,12 @@ import gleam/result
 import gleam/uri
 import open_payments/client.{type Client}
 import open_payments/error.{type OpenPaymentsError}
+import open_payments/internal.{
+  add_query, join_url, optional_field, validate_pagination,
+}
 import open_payments/request
 import open_payments/types.{
-  type Amount, type PageInfo, add_query, decode_amount, decode_page_info,
-  encode_amount, join_url, optional_field, validate_pagination,
+  type Amount, type PageInfo, decode_amount, decode_page_info, encode_amount,
 }
 
 /// The ILP details a sender uses to pay into an incoming payment.
